@@ -1,23 +1,6 @@
 """
 
-Partially based on
-https://github.com/zhixuhao/unet
-
->>INSERT DESCRIPTION HERE<<
-
-
-
-Written for usage on pcd server
-
-Christian Fischer
-
----
-
 Notes:
-
-09/11/18
-
-Finalised version of the original data.py script
 
 Two classes:
 
@@ -33,9 +16,7 @@ create train and test data
 load train and test data
 
 
-
 """
-
 
 
 import numpy as np
@@ -72,7 +53,6 @@ class Preprocess(object):
         get corresponding tile sizes and number of tiles per raw image
         """
 
-        #path_raw = self.raw_path
         path_raw = path
 
         for img in os.listdir(path_raw + os.sep + "image"):
@@ -96,7 +76,6 @@ class Preprocess(object):
             y_overlap = (np.abs(y - y_tile * size)) / (y_tile - 1)
 
             if (x_overlap.is_integer() and y_overlap.is_integer()) and (x_tile * y_tile) % 2 == 0:
-                #print("tile size (px):", size, "number of tiles: ", x_tile * y_tile)
 
                 displ_values.add("Tile size (px): " + str(size) + " | Number of tiles: " + str(x_tile * y_tile))
                 real_values.append((size, x_tile * y_tile))
@@ -104,8 +83,6 @@ class Preprocess(object):
             size += 16
 
         return displ_values, real_values
-
-
 
 
 
@@ -473,7 +450,7 @@ class Augment(object):
 
 
             for imgname in train_imgs:
-                #print(imgname)
+
                 midname = imgname.split(os.sep)[-1]
                 img = cv2.imread(imgname)
 
