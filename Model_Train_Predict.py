@@ -1,17 +1,5 @@
 """"
 
-Partially based on
-https://github.com/zhixuhao/unet
-
->>INSERT DESCRIPTION HERE<<
-
-
-Written for usage on pcd server (linux)
-
-Christian Fischer
-
----
-
 Notes:
 
 weight map functionality has been removed (24/09/18): accuracy does not improve with usage of weigth map
@@ -31,6 +19,7 @@ import os
 import cv2
 import re
 import numpy as np
+import math
 import copy
 import glob
 from math import sqrt
@@ -96,6 +85,14 @@ class MitoSegNet(object):
         self.org_img_cols = org_img_cols
 
 
+    def natural_keys(self, text):
+
+        # sorting of alphanumerical strings
+
+        def atoi(text):
+            return int(text) if text.isdigit() else text
+
+        return [atoi(c) for c in re.split('(\d+)', text)]
 
     def load_data(self, wmap, vbal):
 
@@ -173,8 +170,6 @@ class MitoSegNet(object):
 
         # batchnorm architecture (batchnorm before activation)
         ######################################################################
-        #"""
-
 
         conv1 = Conv2D(64, 3, padding='same', kernel_initializer=gauss())(inputs)
         print("conv1 shape:", conv1.shape)
@@ -242,8 +237,6 @@ class MitoSegNet(object):
                      kernel_initializer=gauss(stddev=sqrt(2 / (9 * 1024))))(UpSampling2D(size=(2, 2))(act5))
 
         merge6 = concatenate([conv4, up6], axis=3)
-        #merge6 = merge([act4, up6], mode='concat', concat_axis=3)
-
 
         conv6 = Conv2D(512, 3, activation='relu', padding='same',
                        kernel_initializer=gauss(stddev=sqrt(2 / (9 * 512))))(merge6)
@@ -255,7 +248,6 @@ class MitoSegNet(object):
                      kernel_initializer=gauss(stddev=sqrt(2 / (9 * 512))))(UpSampling2D(size=(2, 2))(conv6))
 
         merge7 = concatenate([conv3, up7], axis=3)
-        #merge7 = merge([act3, up7], mode='concat', concat_axis=3)
 
         conv7 = Conv2D(256, 3, activation='relu', padding='same',
                        kernel_initializer=gauss(stddev=sqrt(2 / (9 * 256))))(merge7)
@@ -267,7 +259,6 @@ class MitoSegNet(object):
                      kernel_initializer=gauss(stddev=sqrt(2 / (9 * 256))))(UpSampling2D(size=(2, 2))(conv7))
 
         merge8 = concatenate([conv2, up8], axis=3)
-        #merge8 = merge([act2, up8], mode='concat', concat_axis=3)
 
         conv8 = Conv2D(128, 3, activation='relu', padding='same',
                        kernel_initializer=gauss(stddev=sqrt(2 / (9 * 128))))(merge8)
@@ -279,7 +270,6 @@ class MitoSegNet(object):
                      kernel_initializer=gauss(stddev=sqrt(2 / (9 * 128))))(UpSampling2D(size=(2, 2))(conv8))
 
         merge9 = concatenate([conv1, up9], axis=3)
-        #merge9 = merge([act1, up9], mode='concat', concat_axis=3)
 
         conv9 = Conv2D(64, 3, activation='relu', padding='same',
                        kernel_initializer=gauss(stddev=sqrt(2 / (9 * 64))))(merge9)
@@ -289,7 +279,6 @@ class MitoSegNet(object):
         conv9 = Conv2D(2, 3, activation='relu', padding='same',
                        kernel_initializer=gauss(stddev=sqrt(2 / (9 * 64))))(conv9)
 
-        #"""
         ######################################################################
 
         conv10 = Conv2D(1, 1, activation='sigmoid', kernel_initializer=gauss(stddev=sqrt(2 / (9 * 2))))(conv9)
@@ -303,14 +292,12 @@ class MitoSegNet(object):
             input = [inputs, weights]
 
             loss = self.weighted_pixelwise_crossentropy(input[1])
-            #loss = self.alternative_loss(input[1])
 
 
         model = Model(inputs=input, outputs=conv10)
 
         # normally set to 1e-4
         model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=['accuracy', self.dice_coefficient])
-
 
         return model
 
@@ -419,14 +406,16 @@ class MitoSegNet(object):
         org_img_rows = self.org_img_rows
         org_img_cols = self.org_img_cols
 
+        natural_keys = self.natural_keys
+
 
         def create_test_data(tile_size, n_tiles):
 
-            #
-            # adding all image data to one numpy array file (npy)
 
+
+
+            # adding all image data to one numpy array file (npy)
             # all original image files are added to imgs_test.npy
-            #
 
 
             i = 0
@@ -456,18 +445,6 @@ class MitoSegNet(object):
                     os.rename(img, img_edited_path + os.sep + img_name)
 
             imgs = glob.glob(test_path + os.sep + "*")
-
-            ####
-            # this code was added on the 17/01/18 to sort alphanumerical strings
-
-            def atoi(text):
-                return int(text) if text.isdigit() else text
-
-            def natural_keys(text):
-                return [atoi(c) for c in re.split('(\d+)', text)]
-
-            ####
-
             imgs.sort(key=natural_keys)
 
             # create list of images that correspond to arrays in npy file
@@ -496,8 +473,6 @@ class MitoSegNet(object):
 
                 if ".tif" in imgname:
 
-                    print(imgname)
-
                     img = cv2.imread(imgname, cv2.IMREAD_GRAYSCALE)
                     cop_img = copy.copy(img)
 
@@ -506,59 +481,51 @@ class MitoSegNet(object):
 
                     y, x = img.shape
 
-
                     def small_img_size(y, x, img):
 
-                        height = y
-                        width = x
+                        # todo: currently setting border only around bottom and right side in order not to move
+                        # the tile within the frame (maybe it would be necessary to set a frame around entire image)
+
+                        """
+                        Takes image smaller than tile size and adds a border on the bottom and right side to expand
+                        the size to 1030 x 1300
+
+                        :param y:
+                        :param x:
+                        :param img:
+                        :return:
+                        """
 
                         org_height, org_width = 1030, 1300
 
-                        img_template = np.zeros((org_height, org_width))
+                        #top_bottom = int(org_height - y)
+                        #left_right = int(org_width - x)
 
-                        y_pos = 0
-                        while y_pos < 1030:
+                        top_bottom = int(org_height - y/2)
+                        left_right = int(org_width - x/2)
 
-                            new_y_pos = y_pos + height
+                        #new_img = cv2.copyMakeBorder(img, top_bottom, top_bottom, left_right, left_right, cv2.BORDER_REFLECT)
 
-                            if new_y_pos >= 1030:
-                                new_y_pos = 1030
-                                final_y = new_y_pos - y_pos
+                        # top, bottom, left, right
+                        new_img = cv2.copyMakeBorder(img, 0, top_bottom, 0, left_right, cv2.BORDER_REFLECT)
 
-                            else:
-                                final_y = height
-
-                            x_pos = 0
-                            while x_pos < 1300:
-
-                                new_x_pos = x_pos + width
-
-                                if new_x_pos >= 1300:
-                                    new_x_pos = 1300
-                                    img_template[y_pos:new_y_pos, x_pos:new_x_pos] = img[:final_y, :new_x_pos - x_pos]
-
-                                if new_x_pos < 1300:
-                                    img_template[y_pos:new_y_pos, x_pos:new_x_pos] = img[:final_y, :width]
-
-                                x_pos = new_x_pos
-
-                            y_pos = new_y_pos
-
-                        img = img_template
-                        cop_img = copy.copy(img)
+                        img = new_img
+                        cop_img = copy.copy(new_img)
 
                         y, x = img.shape
 
                         return img, cop_img, y, x
 
 
-                    if y < 656 or x < 656:
+                    # if the input image size is smaller than the predefined tile size run this function
+                    if y < tile_size or x < tile_size:
 
                         img, cop_img, y, x = small_img_size(y,x, img)
 
 
                     start_y = 0
                     start_x = 0
+
                     end_y = tile_size
                     end_x = tile_size
 
@@ -566,6 +533,7 @@ class MitoSegNet(object):
                     row = 0
 
                     for n in range(n_tiles):
+
                         start_x, end_x, start_y, end_y, column, row = preproc.find_tile_pos(x, y, tile_size, start_x, end_x,
                                                                                          start_y, end_y, column, row)
 
@@ -579,7 +547,8 @@ class MitoSegNet(object):
 
                 np.save(test_path + os.sep + 'imgs_array.npy', imgdatas)
 
-            return mod_imgs
+            return mod_imgs, y, x
+
 
         def load_test_data():
 
@@ -594,9 +563,10 @@ class MitoSegNet(object):
 
             return imgs_test
 
+
         preproc = Preprocess()
 
-        l_imgs = create_test_data(int(tile_size), int(n_tiles))
+        l_imgs, y, x = create_test_data(int(tile_size), int(n_tiles))
         imgs_test = load_test_data()
 
         # predict if no npy array exists yet
@@ -631,26 +601,13 @@ class MitoSegNet(object):
 
             if ".tif" in img:
 
-                #img_edited = img.split(os.sep)[:-1]
-                # join list back to path string
-                #img_edited_path = os.sep.join(img_edited)
-
                 img_name = img.split(os.sep)[-1]
                 img_name = img_name.split("_")[1]
 
                 org_img_list.append(img_name)
 
         org_img_list = list(set(org_img_list))
-
-
-        def atoi(text):
-            return int(text) if text.isdigit() else text
-
-        def natural_keys(text):
-            return [atoi(c) for c in re.split('(\d+)', text)]
-
-        #alphanumeric sorting of list elements
-        org_img_list.sort(key=natural_keys)
+        org_img_list.sort(key=self.natural_keys)
 
         # saving arrays as images
         print("Array to image")
@@ -672,27 +629,25 @@ class MitoSegNet(object):
         img_nr = 0
         org_img_list_index = 0
 
+        temp_l = []
+
 
         small_size = False
         for n, image in zip(range(imgs.shape[0]), l_imgs):
 
             if img_nr == 0:
 
-                if org_img_rows < 656 or org_img_cols < 656:
+                if org_img_rows < tile_size or org_img_cols < tile_size:
 
                     small_size = True
 
                     small_y, small_x = org_img_rows, org_img_cols
-                    org_img_rows, org_img_cols = 1030, 1300
+
+                    org_img_rows, org_img_cols = y, x
 
                 current_img = np.zeros((org_img_rows, org_img_cols))
 
-
             img = imgs[n]
-
-            # setting any prediction with a probability of 0.5 or lower to 0 and above 0.5 to 1 (255 in 8 bit)
-            img[img > 0.5] = 1
-            img[img <= 0.5] = 0
 
             img = array_to_img(img)
 
@@ -701,6 +656,14 @@ class MitoSegNet(object):
 
             current_img[start_y:end_y, start_x:end_x] = img
 
+            current_img = current_img.astype(np.float32)
+            temp_l.append(current_img)
+
+            if small_size == True:
+                current_img = np.zeros((y, x))
+
+            else:
+                current_img = np.zeros((org_img_rows, org_img_cols))
 
             img_nr += 1
 
@@ -709,22 +672,59 @@ class MitoSegNet(object):
 
                 start_y = 0
                 start_x = 0
+
                 end_y = tile_size
                 end_x = tile_size
 
                 column = 0
                 row = 0
 
-                label_image, num_features = label(current_img)
+                #"""
+
+                background = temp_l[0]
+
+
+                if len(temp_l) > 1:
+
+                    for tmp_n in temp_l[1:]:
+
+                        overlay = tmp_n
+
+                        # todo
+                        """
+                        this method currently does not take the number of overlaps into account, by which the added
+                        intensities should be divided to get a mean value. this would require to automatically generate
+                        the coordinates of all overlapping regions 
+                        """
+
+                        new_img = cv2.addWeighted(background, 1, overlay, 1, 0)
+                        background = new_img
+
+                else:
+
+                    new_img = background
+
+                temp_l = []
+
+                new_img[new_img >= 128] = 255
+                new_img[new_img < 128] = 0
+
+                new_img = new_img.astype(np.uint8)
+
+                #"""
+
+                label_image, num_features = label(new_img)
                 new_image = remove_small_objects(label_image, 10)
 
                 new_image[new_image != 0] = 255
 
+                # todo
                 if small_size == True:
 
                     new_image = new_image[:small_y, :small_x]
 
                 cv2.imwrite(test_path + os.sep + "Prediction" + os.sep + org_img_list[org_img_list_index], new_image)
+
 
                 org_img_list_index+=1
                 img_nr = 0

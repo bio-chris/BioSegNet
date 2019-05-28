@@ -134,6 +134,8 @@ class Preprocess(object):
         return start_x, end_x, start_y, end_y, column, row
 
 
+
+
     def splitImgs(self, path, tile_size, n_tiles):
 
         """

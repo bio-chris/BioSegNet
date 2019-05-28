@@ -1,6 +1,3 @@
-
-
-
 import os
 from shutil import copyfile
 import tkinter.messagebox

@@ -103,10 +103,12 @@ class Control():
         def get_shape(path, img_list):
 
             for img in img_list:
-                img = cv2.imread(path + os.sep + img, cv2.IMREAD_GRAYSCALE)
-                y = img.shape[0]
-                x = img.shape[1]
-                break
+
+                if ".tif" in img:
+                    img = cv2.imread(path + os.sep + img, cv2.IMREAD_GRAYSCALE)
+                    y = img.shape[0]
+                    x = img.shape[1]
+                    break
 
             return y, x
 
@@ -171,10 +173,7 @@ class Control():
 
     def get_measurements(self, imgpath, labpath, datatype, subfolder):
 
-        if datatype == False:
-            pass
-
-        else:
+        if datatype != False:
 
             org_img_list = os.listdir(imgpath)
 
