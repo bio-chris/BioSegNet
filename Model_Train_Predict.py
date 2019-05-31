@@ -395,7 +395,7 @@ class MitoSegNet(object):
         K.clear_session()
 
 
-    def predict(self, test_path, wmap, tile_size, n_tiles, model_name, pretrain):
+    def predict(self, test_path, wmap, tile_size, model_name, pretrain):
 
         """
         :return:
@@ -408,15 +408,10 @@ class MitoSegNet(object):
 
         natural_keys = self.natural_keys
 
-
-        def create_test_data(tile_size, n_tiles):
-
-
-
+        def create_test_data(tile_size):
 
             # adding all image data to one numpy array file (npy)
             # all original image files are added to imgs_test.npy
-
 
             i = 0
             print('-' * 30)
@@ -425,10 +420,31 @@ class MitoSegNet(object):
 
             imgs = glob.glob(test_path + os.sep + "*")
 
+            if org_img_cols < tile_size or org_img_rows < tile_size:
+
+                bs_x = int((tile_size * 2 - org_img_cols) / 2)
+                bs_y = int((tile_size * 2 - org_img_rows) / 2)
+
+            else:
+
+                bs_x = 50
+                bs_y = 50
+
+            x = org_img_cols + 2*bs_x
+            y = org_img_rows + 2*bs_y
+
+            ###############
+            x_tile = math.ceil(x / tile_size)
+            y_tile = math.ceil(y / tile_size)
+
+            x_overlap = (np.abs(x - x_tile * tile_size)) / (x_tile - 1)
+            y_overlap = (np.abs(y - y_tile * tile_size)) / (y_tile - 1)
+
+            n_tiles = x_tile * y_tile
+            ###############
 
             # added 05/12/18 to avoid underscores causing problems when stitching images back together
-            #if any("_" in s for s in imgs):
-
+            # if any("_" in s for s in imgs):
             for img in imgs:
 
                 if "_" in img and ".tif" in img:
@@ -446,6 +462,7 @@ class MitoSegNet(object):
 
             imgs = glob.glob(test_path + os.sep + "*")
             imgs.sort(key=natural_keys)
+
 
             # create list of images that correspond to arrays in npy file
             ################
@@ -474,54 +491,18 @@ class MitoSegNet(object):
                 if ".tif" in imgname:
 
                     img = cv2.imread(imgname, cv2.IMREAD_GRAYSCALE)
-                    cop_img = copy.copy(img)
 
-                    # insert split into 4 sub-images here
-                    ################################################### (09/11/18)
+                    # adding padding around image to avoid prediction at border
 
-                    y, x = img.shape
+                    # top, bottom, left, right
+                    pad_img = cv2.copyMakeBorder(img, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+                    cop_img = copy.copy(pad_img)
 
-                    def small_img_size(y, x, img):
-
-                        # todo: currently setting border only around bottom and right side in order not to move
-                        # the tile within the frame (maybe it would be necessary to set a frame around entire image)
-
-                        """
-                        Takes image smaller than tile size and adds a border on the bottom and right side to expand
-                        the size to 1030 x 1300
-
-                        :param y:
-                        :param x:
-                        :param img:
-                        :return:
-                        """
-
-                        org_height, org_width = 1030, 1300
-
-                        #top_bottom = int(org_height - y)
-                        #left_right = int(org_width - x)
-
-                        top_bottom = int(org_height - y/2)
-                        left_right = int(org_width - x/2)
-
-                        #new_img = cv2.copyMakeBorder(img, top_bottom, top_bottom, left_right, left_right, cv2.BORDER_REFLECT)
-
-                        # top, bottom, left, right
-                        new_img = cv2.copyMakeBorder(img, 0, top_bottom, 0, left_right, cv2.BORDER_REFLECT)
-
-                        img = new_img
-                        cop_img = copy.copy(new_img)
-
-                        y, x = img.shape
-
-                        return img, cop_img, y, x
+                    y, x = pad_img.shape
 
 
-                    # if the input image size is smaller than the predefined tile size run this function
-                    if y < tile_size or x < tile_size:
-
-                        img, cop_img, y, x = small_img_size(y,x, img)
-
+                    # split into n tiles
+                    ###################################################
 
                     start_y = 0
                     start_x = 0
@@ -547,7 +528,7 @@ class MitoSegNet(object):
 
                 np.save(test_path + os.sep + 'imgs_array.npy', imgdatas)
 
-            return mod_imgs, y, x
+            return mod_imgs, y, x, bs_x, bs_y, x_tile, y_tile, x_overlap, y_overlap, n_tiles
 
 
         def load_test_data():
@@ -566,7 +547,7 @@ class MitoSegNet(object):
 
         preproc = Preprocess()
 
-        l_imgs, y, x = create_test_data(int(tile_size), int(n_tiles))
+        l_imgs, y, x, bs_x, bs_y, x_tile, y_tile, x_overlap, y_overlap, n_tiles = create_test_data(int(tile_size))
         imgs_test = load_test_data()
 
         # predict if no npy array exists yet
@@ -583,8 +564,6 @@ class MitoSegNet(object):
 
             print('Predict test data')
 
-            # batch size of 14 was too large to fit into GPU memory
-            # verbose: show ongoing progress (0 do not show)
             imgs_mask_test = model.predict(imgs_test, batch_size=1, verbose=1)
 
             np.save(test_path + os.sep + 'imgs_mask_array.npy', imgs_mask_test)
@@ -629,102 +608,123 @@ class MitoSegNet(object):
         img_nr = 0
         org_img_list_index = 0
 
-        temp_l = []
-
-
-        small_size = False
         for n, image in zip(range(imgs.shape[0]), l_imgs):
 
             if img_nr == 0:
-
-                if org_img_rows < tile_size or org_img_cols < tile_size:
-
-                    small_size = True
-
-                    small_y, small_x = org_img_rows, org_img_cols
-
-                    org_img_rows, org_img_cols = y, x
 
                 current_img = np.zeros((org_img_rows, org_img_cols))
 
             img = imgs[n]
 
-            img = array_to_img(img)
+            img = np.array(img)
+            img = img.reshape((tile_size, tile_size))
 
-            start_x, end_x, start_y, end_y, column, row = preproc.find_tile_pos(org_img_cols, org_img_rows, tile_size,
-                                                                   start_x, end_x, start_y, end_y, column, row)
 
-            current_img[start_y:end_y, start_x:end_x] = img
+            #############################################################
+            # if we are in first or last column, the real x tile size is dependant on both border size and x overlap
+            if column == 0 or column == x_tile - 1:
+                real_x_tile = int(tile_size - bs_x - x_overlap / 2)
+                #border_x = bs_x
+
+            # if we are in first or last row, the real y tile size is dependant on both border size and y overlap
+            if row == 0 or row == y_tile - 1:
+                real_y_tile = int(tile_size - bs_y - y_overlap / 2)
+                #border_y = bs_y
+
+            # first tile of next row
+            if column == 0 and row != 0:
+
+                start_y = int(y_overlap / 2)
+
+                final_start_y = final_end_y
+
+                start_x = bs_x
+                end_x = int(real_x_tile + bs_x)
+
+                final_start_x = 0
+                final_end_x = int(real_x_tile)
+
+                # if we are between the first and last row the real y tile size depends only on the overlap
+                if row != 0 and row != y_tile - 1:
+                    real_y_tile = int(tile_size - y_overlap)
+                    #border_y = 0
+
+                end_y = int(start_y + real_y_tile)
+
+                final_end_y = int(final_start_y + real_y_tile)
+
+            # first tile
+            if column == 0 and row == 0:
+                start_x = bs_x
+                end_x = int(real_x_tile + bs_x)
+
+                start_y = bs_y
+                end_y = int(real_y_tile + bs_y)
+
+                final_start_x = 0
+                final_end_x = int(real_x_tile)
+
+                final_start_y = 0
+                final_end_y = int(real_y_tile)
+
+            column += 1
+
+            # last column tile
+            if column == x_tile:
+                start_x = int(start_x)
+
+                org_end_x = x - bs_x
+
+                end_x = tile_size - bs_x
+
+                final_end_x = org_end_x
+
+                column = 0
+                row += 1
+
+            # iterate over columns
+
+            # prior to stitching the overlapping sections and the padding have to be removed
+            cut_img = img[int(start_y):int(end_y), int(start_x):int(end_x)]
+
+            current_img[int(final_start_y):int(final_end_y), int(final_start_x):int(final_end_x)] = cut_img
+
+            start_x = int(x_overlap / 2)
+
+            final_start_x += int(real_x_tile)
+
+            # real tile size is still set to old value
+            if column != 0 and column != x_tile - 1:
+                real_x_tile = int(tile_size - x_overlap)
+
+            end_x = start_x + int(real_x_tile)
+
+            final_end_x = int(final_start_x + real_x_tile)
+
+            #############################################################
 
             current_img = current_img.astype(np.float32)
-            temp_l.append(current_img)
-
-            if small_size == True:
-                current_img = np.zeros((y, x))
-
-            else:
-                current_img = np.zeros((org_img_rows, org_img_cols))
 
             img_nr += 1
 
             # once one image has been fully stitched, remove any objects below 10 px size and save
             if img_nr == n_tiles:
 
-                start_y = 0
-                start_x = 0
-
-                end_y = tile_size
-                end_x = tile_size
-
                 column = 0
                 row = 0
 
-                #"""
+                # convert to binary
+                current_img[current_img > 0.5] = 255
+                current_img[current_img <= 0.5] = 0
 
-                background = temp_l[0]
+                current_img = current_img.astype(np.uint8)
 
-
-                if len(temp_l) > 1:
-
-                    for tmp_n in temp_l[1:]:
-
-                        overlay = tmp_n
-
-                        # todo
-                        """
-                        this method currently does not take the number of overlaps into account, by which the added
-                        intensities should be divided to get a mean value. this would require to automatically generate
-                        the coordinates of all overlapping regions 
-                        """
-
-                        new_img = cv2.addWeighted(background, 1, overlay, 1, 0)
-                        background = new_img
-
-                else:
-
-                    new_img = background
-
-                temp_l = []
-
-                new_img[new_img >= 128] = 255
-                new_img[new_img < 128] = 0
-
-                new_img = new_img.astype(np.uint8)
-
-                #"""
-
-                label_image, num_features = label(new_img)
+                label_image, num_features = label(current_img)
                 new_image = remove_small_objects(label_image, 10)
 
                 new_image[new_image != 0] = 255
 
-                # todo
-                if small_size == True:
-
-                    new_image = new_image[:small_y, :small_x]
-
                 cv2.imwrite(test_path + os.sep + "Prediction" + os.sep + org_img_list[org_img_list_index], new_image)
-
 
                 org_img_list_index+=1
                 img_nr = 0

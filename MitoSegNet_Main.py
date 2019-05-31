@@ -112,6 +112,10 @@ class Control():
 
             return y, x
 
+
+        # we should not assume a new trained model should only predict images that are the same size as the ones the model
+        # was trained on
+
         if pretrained is False:
 
             tiles_path = path + os.sep + "train" + os.sep + "image"
@@ -234,9 +238,11 @@ class Control():
             else:
                 dataframe.to_excel(parentDirectory + os.sep + folder_name + "_Analysis_Table.xlsx")
 
+        else:
+            pass
 
 
-    def prediction(self, datapath, modelpath, pretrain, model_file, batch_var, popupvar, popupvar_meas, tile_size, y, x, n_tiles,
+    def prediction(self, datapath, modelpath, pretrain, model_file, batch_var, popupvar, popupvar_meas, tile_size, y, x,
                    window):
 
             pred_mitosegnet = MitoSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y,
@@ -263,7 +269,7 @@ class Control():
                 if not os.path.lexists(datapath + os.sep + "Prediction"):
                     os.mkdir(datapath + os.sep + "Prediction")
 
-                pred_mitosegnet.predict(datapath, False, tile_size, n_tiles, model_file, pretrain)
+                pred_mitosegnet.predict(datapath, False, tile_size, model_file, pretrain)
 
                 control_class.get_measurements(datapath, datapath + os.sep + "Prediction", datatype,
                                                False)
@@ -276,7 +282,7 @@ class Control():
                         os.mkdir(datapath + os.sep + subfolders + os.sep + "Prediction")
 
                     pred_mitosegnet.predict(datapath + os.sep + subfolders, False,
-                                            tile_size, n_tiles, model_file, pretrain)
+                                            tile_size, model_file, pretrain)
 
                     labelpath = datapath + os.sep + subfolders + os.sep + "Prediction"
 
@@ -704,7 +710,6 @@ class AdvancedMode(Control):
                     model_name_popupMenu = OptionMenu(cont_prediction_window, model_name, *set(new_list))
                     model_name_popupMenu.place(bordermode=OUTSIDE, x=230, y=63, height=30, width=200)
 
-
                 else:
                     control_class.place_text(cont_prediction_window, "No model found", 40, 60, 35, 360)
 
@@ -726,21 +731,25 @@ class AdvancedMode(Control):
 
             if dir_data_path_prediction.get() != "" and found.get() == 1 and dir_data_path_test_prediction.get() != "":
 
-                tile_size, y, x, tiles_list, images_list = self.get_image_info(dir_data_path_prediction.get(), False, False)
+                tile_size = int(model_name.get().split("_")[-2])
+
+                if batch_var.get() == "One folder":
+
+                    y, x = self.get_image_info(dir_data_path_test_prediction.get(), True, False)
+
+                else:
+
+                    y, x = self.get_image_info(dir_data_path_test_prediction.get(), True, True)
 
                 control_class.prediction(dir_data_path_test_prediction.get(), dir_data_path_prediction.get(), "",
                                          model_name.get(), batch_var.get(), popup_var.get(), popupvar_meas.get(),
-                                         tile_size, y, x, len(tiles_list)/len(images_list), cont_prediction_window)
-
+                                         tile_size, y, x, cont_prediction_window)
 
             else:
 
                 tkinter.messagebox.showinfo("Error", "Entries not completed", parent=cont_prediction_window)
 
-
-
         control_class.place_prediction_text(batch_var, popup_var, popupvar_meas, cont_prediction_window)
-
 
         control_class.place_button(cont_prediction_window, "Start prediction", start_prediction, 360, 290, 30, 110)
 
@@ -896,10 +905,10 @@ class EasyMode(Control):
 
                     y, x = self.get_image_info(datapath.get(), True, True)
 
-                n_tiles = int(math.ceil(y / tile_size) * math.ceil(x / tile_size))
+                #n_tiles = int(math.ceil(y / tile_size) * math.ceil(x / tile_size))
 
                 control_class.prediction(datapath.get(), datapath.get(), modelpath.get(), model_file, batch_var.get(),
-                                         popupvar.get(), popupvar_meas.get(), tile_size, y, x, n_tiles, p_pt_root)
+                                         popupvar.get(), popupvar_meas.get(), tile_size, y, x, p_pt_root)
 
 
             else:

@@ -85,7 +85,6 @@ class Preprocess(object):
         return displ_values, real_values
 
 
-
     def find_tile_pos(self, x, y, tile_size, start_x, end_x, start_y, end_y, column, row):
 
         """
@@ -130,10 +129,7 @@ class Preprocess(object):
 
         column += 1
 
-
         return start_x, end_x, start_y, end_y, column, row
-
-
 
 
     def splitImgs(self, path, tile_size, n_tiles):
