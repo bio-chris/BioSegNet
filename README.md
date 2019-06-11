@@ -1,12 +1,12 @@
-# MitoSegNet Documentation
+# BioSegNet Documentation
 
 ---
 
-## Before running the MitoSegNet
+## Before running the BioSegNet
 
 ### GPU usage
 
-## Running the MitoSegNet
+## Running the BioSegNet
 
 ### Easy Mode
 
