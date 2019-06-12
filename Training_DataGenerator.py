@@ -370,6 +370,7 @@ class Augment(object):
 
 
             # write final merged image
+            aug_img = aug_img.astype('uint8')
             cv2.imwrite(path_merge + os.sep + image, aug_img)
 
             img = aug_img

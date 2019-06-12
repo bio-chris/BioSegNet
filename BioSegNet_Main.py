@@ -26,10 +26,12 @@ import shutil
 import webbrowser
 import math
 import cv2
+import time
 from skimage.measure import regionprops, label
 from Create_Project import *
 from Training_DataGenerator import *
 from Model_Train_Predict import *
+from Train_Val_Analyser import *
 
 
 # GUI
@@ -52,7 +54,7 @@ class Control():
     # opens link to documentation of how to use the program
     def help(self, window):
 
-        webbrowser.open_new("https://github.com/bio-chris/MitoSegNet")
+        webbrowser.open_new("https://github.com/bio-chris/BioSegNet")
 
     # go to main window
     def go_back(self, current_window, root):
@@ -75,6 +77,52 @@ class Control():
         window.minsize(width=int(width/2), height=int(height/2))
         window.geometry(str(width)+"x"+str(height)+"+0+0")
 
+    def eval_train(self):
+
+        analysis_root = Tk()
+        self.new_window(analysis_root, "BioSegNet Training Analysis", 450, 170)
+
+        datapath = StringVar(analysis_root)
+        popup_var = StringVar(analysis_root)
+
+        def askopencsv():
+            set_modelpath = tkinter.filedialog.askopenfilename(parent=analysis_root, title='Choose a CSV file')
+            datapath.set(set_modelpath)
+
+        #### browse for pretrained model
+        text = "Select training log file"
+        control_class.place_browse(askopencsv, text, datapath, 15, 20, None, None, analysis_root)
+        ####
+
+        popup_var.set("Accuracy")
+        Label(analysis_root, text="Choose Metric to display", bd=1).place(bordermode=OUTSIDE, x=15, y=90)
+        popupMenu_train = OptionMenu(analysis_root, popup_var, *set(["Accuracy", "Dice coefficient", "Loss"]))
+        popupMenu_train.place(bordermode=OUTSIDE, x=15, y=110, height=30, width=150)
+
+        def analysis():
+
+            if datapath.get() != "":
+
+                analyser = AnalyseData()
+
+                if popup_var.get() == "Accuracy":
+                    metric = "acc"
+                elif popup_var.get() == "Dice coefficient":
+                    metric = "dice_coefficient"
+                else:
+                    metric = "loss"
+
+                analyser.csv_analysis(datapath.get(), metric, popup_var.get())
+
+            else:
+
+                tkinter.messagebox.showinfo("Error", "Entries not completed", parent=analysis_root)
+
+        control_class.place_button(analysis_root, "Analyse", analysis, 300, 110, 30, 110)
+
+
+
+
     # adds menu to every window, which contains the above functions close_window, help and go_back
     def small_menu(self, window):
 
@@ -82,7 +130,11 @@ class Control():
         window.config(menu=menu)
 
         submenu = Menu(menu)
+        analysis_menu = Menu(menu)
         menu.add_cascade(label="Menu", menu=submenu)
+        menu.add_cascade(label="Analysis", menu=analysis_menu)
+
+        analysis_menu.add_command(label="Evaluate training performance", command=lambda:self.eval_train())
 
         submenu.add_command(label="Help", command=lambda: self.help(window))
 
@@ -245,14 +297,12 @@ class Control():
     def prediction(self, datapath, modelpath, pretrain, model_file, batch_var, popupvar, popupvar_meas, tile_size, y, x,
                    window):
 
-            pred_mitosegnet = MitoSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y,
+            pred_biosegnet = BioSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y,
                                          org_img_cols=x)
 
             set_gpu_or_cpu = GPU_or_CPU(popupvar)
             set_gpu_or_cpu.ret_mode()
 
-
-            #n_tiles = int(math.ceil(y / tile_size) * math.ceil(x / tile_size))
 
             if popupvar_meas == "No measurements":
                 datatype = False
@@ -269,7 +319,7 @@ class Control():
                 if not os.path.lexists(datapath + os.sep + "Prediction"):
                     os.mkdir(datapath + os.sep + "Prediction")
 
-                pred_mitosegnet.predict(datapath, False, tile_size, model_file, pretrain)
+                pred_biosegnet.predict(datapath, False, tile_size, model_file, pretrain)
 
                 control_class.get_measurements(datapath, datapath + os.sep + "Prediction", datatype,
                                                False)
@@ -281,7 +331,7 @@ class Control():
                     if not os.path.lexists(datapath + os.sep + subfolders + os.sep + "Prediction"):
                         os.mkdir(datapath + os.sep + subfolders + os.sep + "Prediction")
 
-                    pred_mitosegnet.predict(datapath + os.sep + subfolders, False,
+                    pred_biosegnet.predict(datapath + os.sep + subfolders, False,
                                             tile_size, model_file, pretrain)
 
                     labelpath = datapath + os.sep + subfolders + os.sep + "Prediction"
@@ -380,7 +430,7 @@ class AdvancedMode(Control):
         old_window.destroy()
         data_root = Tk()
 
-        self.new_window(data_root, "MitoSegNet Data Augmentation", 450, 550)
+        self.new_window(data_root, "BioSegNet Data Augmentation", 450, 550)
         self.small_menu(data_root)
 
         dir_data_path = StringVar(data_root)
@@ -427,7 +477,7 @@ class AdvancedMode(Control):
         tkvar.trace('w', change_dropdown)
 
 
-        text= "Select MitoSegNet Project directory"
+        text= "Select BioSegNet Project directory"
         control_class.place_browse(askopendir, text, dir_data_path, 20, 10, None, None, data_root)
 
         control_class.place_text(data_root, "Choose the tile size and corresponding tile number", 20, 70, None, None)
@@ -520,7 +570,7 @@ class AdvancedMode(Control):
 
         cont_training = Tk()
 
-        self.new_window(cont_training, "MitoSegNet Navigator - Training", 500, 520)
+        self.new_window(cont_training, "BioSegNet Navigator - Training", 500, 520)
         self.small_menu(cont_training)
 
         dir_data_path_train = StringVar(cont_training)
@@ -576,10 +626,10 @@ class AdvancedMode(Control):
 
             except:
 
-                text_er = "Error: Please choose the MitoSegNet Project directory"
+                text_er = "Error: Please choose the BioSegNet Project directory"
                 control_class.place_text(cont_training, text_er, 500, 30, 20, 380)
 
-        text = "Select MitoSegNet Project directory"
+        text = "Select BioSegNet Project directory"
         control_class.place_browse(askopendir_train, text, dir_data_path_train, 20, 10, None, None, cont_training)
 
         control_class.place_text(cont_training, "Train new or existing model", 20, 70, None, None)
@@ -643,22 +693,25 @@ class AdvancedMode(Control):
 
                 if int(use_weight_map.get()) == 1:
                     weight_map = True
+                    bs = 1
                 else:
                     weight_map = False
+                    bs = batch_size.get()
 
                 tile_size, y, x, tiles_list, images_list = self.get_image_info(dir_data_path_train.get(), False, False)
 
-                train_mitosegnet = MitoSegNet(dir_data_path_train.get(), img_rows=tile_size, img_cols=tile_size,
+                train_biosegnet = BioSegNet(dir_data_path_train.get(), img_rows=tile_size, img_cols=tile_size,
                                               org_img_rows=y, org_img_cols=x)
 
                 set_gpu_or_cpu = GPU_or_CPU(popup_var.get())
                 set_gpu_or_cpu.ret_mode()
 
                 #def train(self, epochs, wmap, vbal):
-                train_mitosegnet.train(epochs.get(), learning_rate.get(), batch_size.get(), weight_map, balancer.get(),
-                                       model_name.get())
+                train_biosegnet.train(epochs.get(), learning_rate.get(), bs, weight_map, balancer.get(),
+                                       model_name.get(), popup_newex_var.get())
 
                 tkinter.messagebox.showinfo("Done", "Training completed", parent=cont_training)
+
 
             else:
                 tkinter.messagebox.showinfo("Error", "Entries missing or not correct", parent=cont_training)
@@ -678,7 +731,7 @@ class AdvancedMode(Control):
 
         cont_prediction_window = Tk()
 
-        self.new_window(cont_prediction_window, "MitoSegNet Navigator - Prediction", 500, 350)
+        self.new_window(cont_prediction_window, "BioSegNet Navigator - Prediction", 500, 350)
         self.small_menu(cont_prediction_window)
 
         dir_data_path_prediction = StringVar(cont_prediction_window)
@@ -713,7 +766,7 @@ class AdvancedMode(Control):
                 else:
                     control_class.place_text(cont_prediction_window, "No model found", 40, 60, 35, 360)
 
-        text = "Select MitoSegNet Project directory"
+        text = "Select BioSegNet Project directory"
         control_class.place_browse(askopendir_pred, text, dir_data_path_prediction, 20, 10, None, None, cont_prediction_window)
 
 
@@ -764,7 +817,7 @@ class AdvancedMode(Control):
 
         start_root = Tk()
 
-        self.new_window(start_root, "MitoSegNet Navigator - Start new project", 500, 320)
+        self.new_window(start_root, "BioSegNet Navigator - Start new project", 500, 320)
 
         project_name = StringVar(start_root)
         dirpath = StringVar(start_root)
@@ -788,7 +841,7 @@ class AdvancedMode(Control):
         control_class.place_text(start_root, "Select project name", 15, 10, None, None)
         control_class.place_entry(start_root, project_name, 25, 30, 30, 350)
 
-        text = "Select directory in which MitoSegNet project files should be generated"
+        text = "Select directory in which BioSegNet project files should be generated"
         entry = control_class.place_browse(askopendir, text, dirpath, 15, 70, None, None, start_root)
 
         text = "Select directory in which 8-bit raw images are stored"
@@ -820,7 +873,7 @@ class AdvancedMode(Control):
 
         cont_root = Tk()
 
-        self.new_window(cont_root, "MitoSegNet Navigator - Continue", 300, 200)
+        self.new_window(cont_root, "BioSegNet Navigator - Continue", 300, 200)
         self.small_menu(cont_root)
 
         h = 50
@@ -858,7 +911,7 @@ class EasyMode(Control):
 
         p_pt_root = Tk()
 
-        self.new_window(p_pt_root, "MitoSegNet Navigator - Predict using pretrained model", 500, 350)
+        self.new_window(p_pt_root, "BioSegNet Navigator - Predict using pretrained model", 500, 350)
         self.small_menu(p_pt_root)
 
         datapath = StringVar(p_pt_root)
@@ -922,7 +975,7 @@ class EasyMode(Control):
 
         pre_ft_pt_root = Tk()
 
-        self.new_window(pre_ft_pt_root, "MitoSegNet Navigator - Finetune pretrained model", 250, 380)
+        self.new_window(pre_ft_pt_root, "BioSegNet Navigator - Finetune pretrained model", 250, 380)
         self.small_menu(pre_ft_pt_root)
 
         control_class.place_button(pre_ft_pt_root, "New", easy_mode.new_finetune_pretrained, 45, 50, 130, 150)
@@ -933,7 +986,7 @@ class EasyMode(Control):
 
         ex_ft_pt_root = Tk()
 
-        self.new_window(ex_ft_pt_root, "MitoSegNet Navigator - Continue finetuning pretrained model", 500, 230)
+        self.new_window(ex_ft_pt_root, "BioSegNet Navigator - Continue finetuning pretrained model", 500, 230)
         self.small_menu(ex_ft_pt_root)
 
         ft_datapath = StringVar(ex_ft_pt_root)
@@ -968,7 +1021,7 @@ class EasyMode(Control):
 
                 tile_size = tile_size_y
 
-                train_mitosegnet = MitoSegNet(ft_datapath.get(), img_rows=tile_size,
+                train_biosegnet = BioSegNet(ft_datapath.get(), img_rows=tile_size,
                                               img_cols=tile_size, org_img_rows=y, org_img_cols=x)
 
                 set_gpu_or_cpu = GPU_or_CPU(popupvar.get())
@@ -984,7 +1037,7 @@ class EasyMode(Control):
                 else:
                     wmap = False
 
-                train_mitosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, model_list[0])
+                train_biosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, model_list[0])
 
                 tkinter.messagebox.showinfo("Done", "Training / Finetuning completed", parent=ex_ft_pt_root)
 
@@ -1004,7 +1057,7 @@ class EasyMode(Control):
 
         ft_pt_root = Tk()
 
-        self.new_window(ft_pt_root, "MitoSegNet Navigator - Finetune pretrained model", 500, 380)
+        self.new_window(ft_pt_root, "BioSegNet Navigator - Finetune pretrained model", 500, 380)
         self.small_menu(ft_pt_root)
 
         img_datapath = StringVar(ft_pt_root)
@@ -1096,7 +1149,7 @@ class EasyMode(Control):
 
                 mydata.create_train_data(wmap, tile_size, tile_size)
 
-                train_mitosegnet = MitoSegNet(parent_path + os.sep + "Finetune_folder", img_rows=tile_size,
+                train_biosegnet = BioSegNet(parent_path + os.sep + "Finetune_folder", img_rows=tile_size,
                                               img_cols=tile_size, org_img_rows=y, org_img_cols=x)
 
                 set_gpu_or_cpu = GPU_or_CPU(popupvar.get())
@@ -1111,7 +1164,7 @@ class EasyMode(Control):
                 shutil.copy(modelpath.get(), parent_path + os.sep + "Finetune_folder" + os.sep + "finetuned_" + old_model_name)
                 new_model_name = "finetuned_" + old_model_name
 
-                train_mitosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, new_model_name)
+                train_biosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, new_model_name)
 
                 tkinter.messagebox.showinfo("Done", "Training / Finetuning completed", parent=ft_pt_root)
 
@@ -1134,7 +1187,7 @@ if __name__ == '__main__':
 
     root = Tk()
 
-    control_class.new_window(root, "MitoSegNet Navigator - Start", 400, 400)
+    control_class.new_window(root, "BioSegNet Navigator - Start", 400, 400)
     control_class.small_menu(root)
 
     # advanced mode

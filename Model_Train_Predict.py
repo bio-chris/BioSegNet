@@ -19,9 +19,11 @@ import os
 import cv2
 import re
 import numpy as np
+import pandas as pd
 import math
 import copy
 import glob
+from time import time
 from math import sqrt
 from skimage.morphology import remove_small_objects
 from scipy.ndimage import label
@@ -54,8 +56,7 @@ from keras.optimizers import Adam
 from keras.initializers import RandomNormal as gauss
 from keras import backend as K
 from keras import losses
-from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger
-from keras.preprocessing.image import array_to_img
+from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger, TensorBoard
 
 from Training_DataGenerator import *
 
@@ -71,7 +72,7 @@ max pooling operations are applied to a layer with an even x and y size
 """
 
 
-class MitoSegNet(object):
+class BioSegNet(object):
 
 
     def __init__(self, path, img_rows, img_cols, org_img_rows, org_img_cols):
@@ -128,13 +129,13 @@ class MitoSegNet(object):
             return imgs_train, imgs_mask_train
 
 
-    def get_mitosegnet(self, wmap, lr):
+    def get_biosegnet(self, wmap, lr):
 
         inputs = Input(shape=(self.img_rows, self.img_cols, 1))
         print(inputs.get_shape(), type(inputs))
 
 
-        # core mitosegnet (modified u-net) architecture
+        # core biosegnet (modified u-net) architecture
         ######################################
         ######################################
 
@@ -166,7 +167,6 @@ class MitoSegNet(object):
             1 section containing only one convolutional layer 
 
         """
-
 
         # batchnorm architecture (batchnorm before activation)
         ######################################################################
@@ -283,7 +283,6 @@ class MitoSegNet(object):
 
         conv10 = Conv2D(1, 1, activation='sigmoid', kernel_initializer=gauss(stddev=sqrt(2 / (9 * 2))))(conv9)
 
-
         if wmap == False:
             input = inputs
             loss = self.pixelwise_crossentropy()
@@ -293,14 +292,11 @@ class MitoSegNet(object):
 
             loss = self.weighted_pixelwise_crossentropy(input[1])
 
-
         model = Model(inputs=input, outputs=conv10)
 
-        # normally set to 1e-4
         model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=['accuracy', self.dice_coefficient])
 
         return model
-
 
     def dice_coefficient(self, y_true, y_pred):
 
@@ -331,13 +327,13 @@ class MitoSegNet(object):
 
         return loss
 
-
-    def train(self, epochs, learning_rate, batch_size, wmap, vbal, model_name):
+    # todo
+    def train(self, epochs, learning_rate, batch_size, wmap, vbal, model_name, new_ex):
 
         if ".hdf5" in model_name:
-            pass
+            model_name = model_name.split(".hdf5")[0]
         else:
-            model_name = model_name + ".hdf5"
+            pass
 
         print("Loading data")
 
@@ -348,52 +344,89 @@ class MitoSegNet(object):
 
         print("Loading data done")
 
-        model = self.get_mitosegnet(wmap, learning_rate)
-        print("Got mitosegnet")
-
+        model = self.get_biosegnet(wmap, learning_rate)
+        print("Got BioSegNet")
 
         print(self.path + os.sep + model_name)
 
+        if os.path.isfile(self.path + os.sep + model_name + ".hdf5"):
 
-        if os.path.isfile(self.path + os.sep + model_name):
-
-            model.load_weights(self.path + os.sep + model_name)
+            model.load_weights(self.path + os.sep + model_name + ".hdf5")
             print("Loading weights")
 
         else:
             print("No previously optimized weights were loaded. Proceeding without")
-
 
         # Set network weights saving mode.
         # save previously established network weights (saving model after every epoch)
 
         print('Fitting model...')
 
-        model_name_csv = model_name.split(".")[0]
-        csv_logger = CSVLogger(self.path + os.sep + model_name_csv + '_training_log.csv')
+        if new_ex == "New":
+
+            first_ep = 0
+            model_name = model_name + "_" + str(self.img_rows) + "_"
+
+        else:
+            prev_csv_file = pd.read_csv(self.path + os.sep + model_name + 'training_log.csv')
+            first_ep = len(prev_csv_file)
+
+            if prev_csv_file.shape[1] > 7:
+                prev_csv_file = prev_csv_file.drop(prev_csv_file.columns[[0]], axis=1)
+
+        csv_logger = CSVLogger(self.path + os.sep + model_name + 'training_log.csv')
+
+        tensorboard = TensorBoard(log_dir=self.path + os.sep + "logs/{}".format(time()))
 
         # Set callback functions to early stop training and save the best model so far
         callbacks = [EarlyStopping(monitor='val_loss', patience=5),
-                     ModelCheckpoint(filepath=self.path + os.sep +model_name, monitor='val_loss', verbose=1, save_best_only=True),
-                     csv_logger]
-
+                     ModelCheckpoint(filepath=self.path + os.sep + model_name + ".hdf5",
+                                     monitor='val_loss', verbose=1, save_best_only=True),
+                     csv_logger, tensorboard]
 
         if wmap == True:
             x = [imgs_train, img_weights]
         else:
             x = imgs_train
 
+
+        print("\nCopy the line below into the terminal, press enter and click on the link to evaluate the training "
+              "performance:\n\ntensorboard --logdir=" + self.path + os.sep + "logs/\n")
+
+
         model.fit(x=x, y=imgs_mask_train, batch_size=batch_size, epochs=epochs, verbose=1,
                             validation_split=0.2, shuffle=True, callbacks=callbacks)
 
+        ########
 
-        info_file = open(self.path + os.sep + model_name + "_train_info.txt", "w")
+        csv_file = pd.read_csv(self.path + os.sep + model_name + 'training_log.csv')
+
+
+        if new_ex == "New":
+
+            csv_file["epoch"] = list(range(1, len(csv_file) + 1))
+            last_ep = len(csv_file)
+
+        if new_ex == "Existing":
+
+            frames = [prev_csv_file, csv_file]
+            merged = pd.concat(frames, names=[])
+
+            merged["epoch"] = list(range(1, len(merged) + 1))
+
+            last_ep = len(merged)
+
+            merged.to_csv(self.path + os.sep + model_name + 'training_log.csv')
+
+        ########
+
+
+        info_file = open(self.path + os.sep + model_name + str(first_ep) + "-" + str(last_ep) + "_train_info.txt", "w")
         info_file.write("Learning rate: " + str(learning_rate)+
                         "\nBatch size: " + str(batch_size))
         info_file.close()
 
         K.clear_session()
-
 
     def predict(self, test_path, wmap, tile_size, model_name, pretrain):
 
@@ -463,7 +496,6 @@ class MitoSegNet(object):
             imgs = glob.glob(test_path + os.sep + "*")
             imgs.sort(key=natural_keys)
 
-
             # create list of images that correspond to arrays in npy file
             ################
             mod_imgs = []
@@ -499,7 +531,6 @@ class MitoSegNet(object):
                     cop_img = copy.copy(pad_img)
 
                     y, x = pad_img.shape
-
 
                     # split into n tiles
                     ###################################################
@@ -544,7 +575,6 @@ class MitoSegNet(object):
 
             return imgs_test
 
-
         preproc = Preprocess()
 
         l_imgs, y, x, bs_x, bs_y, x_tile, y_tile, x_overlap, y_overlap, n_tiles = create_test_data(int(tile_size))
@@ -555,7 +585,7 @@ class MitoSegNet(object):
 
             lr = 1e-4
 
-            model = self.get_mitosegnet(wmap, lr)
+            model = self.get_biosegnet(wmap, lr)
 
             if pretrain == "":
                 model.load_weights(self.path + os.sep + model_name)
@@ -618,7 +648,6 @@ class MitoSegNet(object):
 
             img = np.array(img)
             img = img.reshape((tile_size, tile_size))
-
 
             #############################################################
             # if we are in first or last column, the real x tile size is dependant on both border size and x overlap
@@ -730,6 +759,3 @@ class MitoSegNet(object):
                 img_nr = 0
 
         K.clear_session()
-
-
-
