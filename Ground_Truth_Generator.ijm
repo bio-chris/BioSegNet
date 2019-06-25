@@ -3,6 +3,8 @@
  * 
  */
 
+run("Colors...", "foreground=black background=white selection=yellow");
+
 raw_image = File.openDialog("Select new image or previously processed raw image to continue segmentation");
 
 // obtaining directory path by removing filename substring from filepath
@@ -42,6 +44,10 @@ else{
 selectWindow("raw_image_" + org_title);
 setTool("freehand");
 
+run("Overlay Options...", "stroke=none width=0 fill=black set");
+
+
+
 i = 0;
 while(i==0){
 
@@ -57,7 +63,9 @@ while(i==0){
 	}
 	else{
 	
-		run("Fill", "slice");
+		//run("Fill", "slice");
+		run("Add Selection...");
+		
 		saveAs("Tiff", directory_path + File.separator + "raw_image_" + org_title);
 	
 		selectWindow("ground_truth_" + org_title);
@@ -69,5 +77,5 @@ while(i==0){
 	}	 
 }
 
-
+run("Overlay Options...", "stroke=none width=0 fill=none set");
 

@@ -50,7 +50,7 @@ class GPU_or_CPU(object):
         return self.mode
 
 
-from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization
+from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization, Dropout
 from keras.models import Model
 from keras.optimizers import Adam
 from keras.initializers import RandomNormal as gauss
@@ -168,6 +168,10 @@ class BioSegNet(object):
 
         """
 
+        # batchnorm architecture (batchnorm after activation)
+        ######################################################################
+        ######################################################################
+
         # batchnorm architecture (batchnorm before activation)
         ######################################################################
 
@@ -220,6 +224,7 @@ class BioSegNet(object):
         conv4 = Conv2D(512, 3, padding='same', kernel_initializer=gauss(stddev=sqrt(2 / (9 * 512))))(act4)  # conv4
         batch4 = BatchNormalization()(conv4)
         act4 = Activation("relu")(batch4)
+
         pool4 = MaxPooling2D(pool_size=(2, 2))(act4)
         ########
 
@@ -231,6 +236,7 @@ class BioSegNet(object):
         conv5 = Conv2D(1024, 3, padding='same', kernel_initializer=gauss(stddev=sqrt(2 / (9 * 1024))))(act5)  # conv5
         batch5 = BatchNormalization()(conv5)
         act5 = Activation("relu")(batch5)
+
         ########
 
         up6 = Conv2D(512, 2, activation='relu', padding='same',
@@ -367,6 +373,10 @@ class BioSegNet(object):
             first_ep = 0
             model_name = model_name + "_" + str(self.img_rows) + "_"
 
+        elif new_ex == "Finetuned_New":
+
+            first_ep = 0
+
         else:
             prev_csv_file = pd.read_csv(self.path + os.sep + model_name + 'training_log.csv')
             first_ep = len(prev_csv_file)
@@ -402,7 +412,7 @@ class BioSegNet(object):
         csv_file = pd.read_csv(self.path + os.sep + model_name + 'training_log.csv')
 
 
-        if new_ex == "New":
+        if new_ex == "New" or new_ex == "Finetuned_New":
 
             csv_file["epoch"] = list(range(1, len(csv_file) + 1))
             last_ep = len(csv_file)
@@ -493,7 +503,7 @@ class BioSegNet(object):
 
                     os.rename(img, img_edited_path + os.sep + img_name)
 
-            imgs = glob.glob(test_path + os.sep + "*")
+            imgs = glob.glob(test_path + os.sep + "*.tif")
             imgs.sort(key=natural_keys)
 
             # create list of images that correspond to arrays in npy file

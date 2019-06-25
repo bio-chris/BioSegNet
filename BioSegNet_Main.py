@@ -22,6 +22,7 @@ import tkinter.filedialog
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import shutil
 import webbrowser
 import math
@@ -52,7 +53,7 @@ class Control():
         window.destroy()
 
     # opens link to documentation of how to use the program
-    def help(self, window):
+    def help(self):
 
         webbrowser.open_new("https://github.com/bio-chris/BioSegNet")
 
@@ -76,6 +77,18 @@ class Control():
 
         window.minsize(width=int(width/2), height=int(height/2))
         window.geometry(str(width)+"x"+str(height)+"+0+0")
+
+    def automatic_eval_train(self, datapath):
+
+        analyser = AnalyseData()
+
+        aut = True
+
+        analyser.csv_analysis(datapath, "acc", "Accuracy", aut)
+        analyser.csv_analysis(datapath, "dice_coefficient", "Dice coefficient", aut)
+        analyser.csv_analysis(datapath, "loss", "Loss", aut)
+
+        plt.show()
 
     def eval_train(self):
 
@@ -112,14 +125,15 @@ class Control():
                 else:
                     metric = "loss"
 
-                analyser.csv_analysis(datapath.get(), metric, popup_var.get())
+                aut = False
+
+                analyser.csv_analysis(datapath.get(), metric, popup_var.get(), aut)
 
             else:
 
                 tkinter.messagebox.showinfo("Error", "Entries not completed", parent=analysis_root)
 
         control_class.place_button(analysis_root, "Analyse", analysis, 300, 110, 30, 110)
-
 
 
 
@@ -346,7 +360,7 @@ class Control():
     def place_gpu(self, popupvar, x, y, window):
 
         popupvar.set("GPU")
-        Label(window, text="Predict on", bd=1).place(bordermode=OUTSIDE, x=x, y=y)
+        Label(window, text="Train / Predict on", bd=1).place(bordermode=OUTSIDE, x=x, y=y)
         popupMenu_train = OptionMenu(window, popupvar, *set(["GPU", "CPU"]))
         popupMenu_train.place(bordermode=OUTSIDE, x=x+10, y=y+20, height=30, width=100)
 
@@ -362,7 +376,7 @@ class Control():
 
         self.place_gpu(popupvar, 20, 220, window)
 
-        popupvar_meas.set("No measurement")
+        popupvar_meas.set("No measurements")
         Label(window, text="Generate measurement table", bd=1).place(bordermode=OUTSIDE, x=20, y=280)
         popupMenu_train = OptionMenu(window, popupvar_meas, *set(["No measurements", "CSV Table", "Excel Table"]))
         popupMenu_train.place(bordermode=OUTSIDE, x=30, y=300, height=30, width=130)
@@ -958,11 +972,8 @@ class EasyMode(Control):
 
                     y, x = self.get_image_info(datapath.get(), True, True)
 
-                #n_tiles = int(math.ceil(y / tile_size) * math.ceil(x / tile_size))
-
                 control_class.prediction(datapath.get(), datapath.get(), modelpath.get(), model_file, batch_var.get(),
                                          popupvar.get(), popupvar_meas.get(), tile_size, y, x, p_pt_root)
-
 
             else:
 
@@ -1009,7 +1020,6 @@ class EasyMode(Control):
         # set gpu or cpu training
         control_class.place_gpu(popupvar, 20, 130, ex_ft_pt_root)
 
-
         def start_training():
 
             if ft_datapath.get() != "":
@@ -1017,9 +1027,9 @@ class EasyMode(Control):
                 file_list = os.listdir(ft_datapath.get())
                 model_list = [i for i in file_list if ".hdf5" in i and not ".csv" in i]
 
-                tile_size_y, y, x, tiles_list, images_list  = self.get_image_info(ft_datapath.get(), False, False)
-
-                tile_size = tile_size_y
+                # ignore tile size from project folder and rely instead on tile size noted on model file
+                tile_size, y, x, tiles_list, images_list  = self.get_image_info(ft_datapath.get(), False, False)
+                tile_size = int(model_list[0].split("_")[-2])
 
                 train_biosegnet = BioSegNet(ft_datapath.get(), img_rows=tile_size,
                                               img_cols=tile_size, org_img_rows=y, org_img_cols=x)
@@ -1037,7 +1047,11 @@ class EasyMode(Control):
                 else:
                     wmap = False
 
-                train_biosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, model_list[0])
+                train_biosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, model_list[0], "Existing")
+
+                modelname = model_list[0].split(".hdf5")[0]
+
+                control_class.automatic_eval_train(ft_datapath.get() + os.sep + modelname + "training_log.csv")
 
                 tkinter.messagebox.showinfo("Done", "Training / Finetuning completed", parent=ex_ft_pt_root)
 
@@ -1057,9 +1071,10 @@ class EasyMode(Control):
 
         ft_pt_root = Tk()
 
-        self.new_window(ft_pt_root, "BioSegNet Navigator - Finetune pretrained model", 500, 380)
+        self.new_window(ft_pt_root, "BioSegNet Navigator - Finetune pretrained model", 500, 450)
         self.small_menu(ft_pt_root)
 
+        folder_name = StringVar(ft_pt_root)
         img_datapath = StringVar(ft_pt_root)
         label_datapath = StringVar(ft_pt_root)
         modelpath = StringVar(ft_pt_root)
@@ -1078,39 +1093,48 @@ class EasyMode(Control):
             set_modelpath = tkinter.filedialog.askopenfilename(parent=ft_pt_root, title='Choose a file')
             modelpath.set(set_modelpath)
 
+        # set finetune folder name
+        control_class.place_text(ft_pt_root, "Enter Finetune folder name", 15, 20, None, None)
+        control_class.place_entry(ft_pt_root, folder_name, 25, 40, 30, 350)
+
         # browse for raw image data
         text = "Select directory in which 8-bit raw images are stored"
-        control_class.place_browse(askopenimgdata, text, img_datapath, 15, 20, None, None, ft_pt_root)
+        control_class.place_browse(askopenimgdata, text, img_datapath, 15, 80, None, None, ft_pt_root)
 
         # browse for labelled data
         text = "Select directory in which ground truth (hand-labelled) images are stored"
-        control_class.place_browse(askopenlabdata, text, label_datapath, 15, 90, None, None, ft_pt_root)
+        control_class.place_browse(askopenlabdata, text, label_datapath, 15, 150, None, None, ft_pt_root)
 
         # browse for pretrained model
         text = "Select pretrained model file"
-        control_class.place_browse(askopenmodel, text, modelpath, 15, 160, None, None, ft_pt_root)
+        control_class.place_browse(askopenmodel, text, modelpath, 15, 220, None, None, ft_pt_root)
 
         # set number of epochs
-        control_class.place_text(ft_pt_root, "Number of epochs", 30, 240, None, None)
-        control_class.place_entry(ft_pt_root, epochs, 250, 235, 30, 50)
+        control_class.place_text(ft_pt_root, "Number of epochs", 30, 300, None, None)
+        control_class.place_entry(ft_pt_root, epochs, 250, 295, 30, 50)
 
 
         # set gpu or cpu training
-        control_class.place_gpu(popupvar, 20, 280, ft_pt_root)
+        control_class.place_gpu(popupvar, 20, 340, ft_pt_root)
 
         def start_training():
 
             l_temp = img_datapath.get().split(os.sep)
             parent_path = os.sep.join(l_temp[:-1])
 
-            if img_datapath.get() != "" and label_datapath.get() != "" and epochs.get() != 0 and modelpath.get() != "":
+            if folder_name.get() != "" and img_datapath.get() != "" and label_datapath.get() != "" \
+                    and epochs.get() != 0 and modelpath.get() != "":
 
                 # create project folder
-                if not os.path.lexists(parent_path + os.sep + "Finetune_folder"):
+                if not os.path.lexists(parent_path + os.sep + folder_name.get()):
 
-
-                    control_class.generate_project_folder(True, "Finetune_folder", parent_path, img_datapath.get(),
+                    control_class.generate_project_folder(True, folder_name.get(), parent_path, img_datapath.get(),
                                                           label_datapath.get(), ft_pt_root)
+
+                else:
+
+                    tkinter.messagebox.showinfo("Error", "Folder already exists", parent=ft_pt_root)
+
 
                 # split label and 8-bit images into tiles
                 tile_size = int(modelpath.get().split("_")[-2])
@@ -1119,9 +1143,10 @@ class EasyMode(Control):
 
                 n_tiles = int(math.ceil(y/tile_size)*math.ceil(x/tile_size))
 
-                self.preprocess.splitImgs(parent_path + os.sep + "Finetune_folder", tile_size, n_tiles)
+                self.preprocess.splitImgs(parent_path + os.sep + folder_name.get(), tile_size, n_tiles)
 
                 # augment the tiles automatically (no user adjustments)
+
                 shear_range = 0.1
                 rotation_range = 180
                 zoom_range = 0.1
@@ -1130,8 +1155,8 @@ class EasyMode(Control):
                 width_shift = 0.2
                 height_shift = 0.2
 
-                aug = Augment(parent_path + os.sep + "Finetune_folder", shear_range, rotation_range, zoom_range, hf, vf,
-                              width_shift, height_shift)
+                aug = Augment(parent_path + os.sep + folder_name.get(), shear_range, rotation_range, zoom_range, hf, vf,
+                             width_shift, height_shift)
 
                 # generate weight map if weight map model was chosen
                 if "with_weight_map" in modelpath.get():
@@ -1141,15 +1166,15 @@ class EasyMode(Control):
 
                 n_aug = 50
 
-                aug.start_augmentation(imgnum=n_aug, wmap=wmap)
+                aug.start_augmentation(imgnum=n_aug, wmap=wmap, tile_size=tile_size)
                 aug.splitMerge(wmap=wmap)
 
                 # convert augmented files into array
-                mydata = Create_npy_files(parent_path + os.sep + "Finetune_folder")
+                mydata = Create_npy_files(parent_path + os.sep + folder_name.get())
 
                 mydata.create_train_data(wmap, tile_size, tile_size)
 
-                train_biosegnet = BioSegNet(parent_path + os.sep + "Finetune_folder", img_rows=tile_size,
+                train_biosegnet = BioSegNet(parent_path + os.sep + folder_name.get(), img_rows=tile_size,
                                               img_cols=tile_size, org_img_rows=y, org_img_cols=x)
 
                 set_gpu_or_cpu = GPU_or_CPU(popupvar.get())
@@ -1157,22 +1182,28 @@ class EasyMode(Control):
 
                 learning_rate = 1e-4
                 batch_size = 1
-                balancer = 1
+                balancer = 0.01
 
                 # copy old model and rename to finetuned_model
                 old_model_name = modelpath.get().split(os.sep)[-1]
-                shutil.copy(modelpath.get(), parent_path + os.sep + "Finetune_folder" + os.sep + "finetuned_" + old_model_name)
+                shutil.copy(modelpath.get(), parent_path + os.sep + folder_name.get() + os.sep + "finetuned_" + old_model_name)
                 new_model_name = "finetuned_" + old_model_name
 
-                train_biosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, new_model_name)
+                train_biosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, new_model_name, "Finetuned_New")
+
+                modelname = new_model_name.split(".hdf5")[0]
+                control_class.automatic_eval_train(parent_path + os.sep + folder_name.get() + os.sep + modelname
+                                                   + "training_log.csv")
 
                 tkinter.messagebox.showinfo("Done", "Training / Finetuning completed", parent=ft_pt_root)
+
+
 
             else:
 
                 tkinter.messagebox.showinfo("Error", "Entries missing or not correct", parent=ft_pt_root)
 
-        control_class.place_button(ft_pt_root, "Start training", start_training, 200, 330, 30, 100)
+        control_class.place_button(ft_pt_root, "Start training", start_training, 200, 390, 30, 100)
 
 
 if __name__ == '__main__':

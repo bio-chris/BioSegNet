@@ -82,6 +82,10 @@ class Preprocess(object):
 
             size += 16
 
+        if x == y:
+            displ_values.add("Tile size (px): " + str(x) + " | Number of tiles: " + str(1))
+            real_values.append((x, 1))
+
         return displ_values, real_values
 
 
@@ -142,7 +146,7 @@ class Preprocess(object):
         :return:
         """
 
-        if n_tiles%2!=0 or tile_size%16!=0:
+        if n_tiles%2!=0 and n_tiles!=1 or tile_size%16!=0:
             print("Incorrect number of tiles or tile size not divisible by 16.\nAborting")
             exit()
 
@@ -167,7 +171,7 @@ class Preprocess(object):
             read_lab = cv2.imread(path_raw + os.sep + "label" + os.sep + img, cv2.IMREAD_GRAYSCALE)
             y, x = read_img.shape
 
-            if tile_size > max(y,x)/2+16:
+            if tile_size > max(y,x)/2+16 and n_tiles!=1:
                 print("Tile size to big.\nAborting")
                 exit()
 
@@ -204,12 +208,12 @@ class Augment(object):
     Finally, separate augmented image apart into train image and label
     """
 
+    #todo
     def __init__(self, path, shear_range, rotation_range, zoom_range, horizontal_flip, vertical_flip, width_shift_range,
                  height_shift_range, train_path="train" + os.sep + "image", label_path="train" + os.sep + "label",
                  raw_path = "train" + os.sep + "RawImgs", merge_path="merge", aug_merge_path="aug_merge",
                  aug_train_path="aug_train", aug_label_path="aug_label", img_type="tif", weights_path="weights",
                  aug_weights_path="aug_weights"):
-
 
         """
         Using glob to get all .img_type form path
@@ -223,7 +227,6 @@ class Augment(object):
         self.vertical_flip = vertical_flip
         self.width_shift_range = width_shift_range
         self.height_shift_range = height_shift_range
-
 
         self.train_imgs = glob.glob(self.path + os.sep + train_path + os.sep + "*." + img_type)
         self.label_imgs = glob.glob(self.path + os.sep + label_path + os.sep + "*." + img_type)
@@ -252,8 +255,7 @@ class Augment(object):
             height_shift_range=self.height_shift_range,
             fill_mode='reflect')  # pixels outside boundary are set to 0
 
-
-    def start_augmentation(self, imgnum, wmap):
+    def start_augmentation(self, imgnum, wmap, tile_size):
 
 
         def create_distance_weight_map(label, w0=10, sigma=5):
@@ -341,10 +343,19 @@ class Augment(object):
         # iterate through folder, merge label, original images and save to merged folder
         for count, image in enumerate(os.listdir(path_train)):
 
-            print(image)
+            #print(image)
 
             x_t = cv2.imread(path_train + os.sep  + image, cv2.IMREAD_GRAYSCALE)
             x_l = cv2.imread(path_label + os.sep  + image, cv2.IMREAD_GRAYSCALE)
+
+
+            # 19/06/19 todo
+            if x_t.shape[1] < tile_size or x_t.shape[0] < tile_size:
+                bs_x = int((tile_size - x_t.shape[1]) / 2)
+                bs_y = int((tile_size - x_t.shape[0]) / 2)
+
+                x_t = cv2.copyMakeBorder(x_t, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+                x_l = cv2.copyMakeBorder(x_l, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
 
             if wmap == False:
                 x_w = np.zeros((x_l.shape[0], x_l.shape[1]))
