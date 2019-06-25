@@ -26,11 +26,11 @@ or decrease the batch size.
 
 ## Running the BioSegNet
 
-### Easy Mode
+## Easy Mode
 
 If you are unfamiliar with deep learning concepts such as batch size, learning rate or augmentation operations, then it is recommended to use the Easy Mode, in which most of the deep learning parameters are pre-set. 
 
-#Predict on pretrained model
+### Predict on pretrained model
 
 * Select directory in which 8-bit raw images are stored:
 * Images have to be 8-bit, tif format and single plane. Use the macro MitoSegNet_PreProcessing.ijm for automated conversion of a large number of images (Prerequisite for macro usage is installation of Bio-Formats plugin on Fiji)
@@ -42,7 +42,7 @@ Once all entries are filled, click on "Start prediction" and wait until a Done w
 
 If segmentation with a pretrained model did not generate good results you can try to finetune the pretrained model to your own data
 
-#Finetune pretrained model
+### Finetune pretrained model
 
 Select "New" if you are starting a new finetuning project or "Existing" if you want to continue to work on a previously generated finetuning project. 
 
@@ -56,13 +56,13 @@ Once all entries are filled, click on "Start training" and wait until a Done win
 In the parent directory of the raw image and label image folder a Finetune_folder will be generated in which all the newly augmented data, image arrays and finetuned models will be stored.
 
 
-### Advanced Mode
+## Advanced Mode
 
 If you understand concepts such as data augmentation, weighted loss functions and learning rate then you might be interested in creating a more customized deep learning model
 using the advanced mode. It is highly recommended to first familiarize yourself with the basic concepts of how convolutional neural networks work before attempting to use the
 advanced mode. 
 
-#Start new project
+### Start new project
 
 To start a new project, click on the "Start new project" button. 
 
@@ -77,7 +77,7 @@ Continue working on existing project
 
 Start with generating the training data. 
 
-#Create augmented data
+### Create augmented data
 
 * Select the recently created project directory 
 * Based on the size of the images you are using the software will present you a list of possible tile sizes and tile numbers. When using the GPU, be aware that the maximum tile size possible will be limited by the GPU memory. If you run out of memory, try to select a smaller tile size
@@ -85,7 +85,7 @@ Start with generating the training data.
 * Specify augmentation operations: visit https://keras.io/preprocessing/image/ to see what the different augmentation operations do
 * Create weight map: a weight map shows objects that are in close proximity to each other and is used to force the convolutional neural network to learn border separations. Be aware that when selecting "Create weight map" that the augmentation process will take longer and the training data will use more disk space 
 
-#Train model
+### Train model
 
 * Select the recently created project directory 
 * Specify name of a new model or train on an existing model
@@ -95,12 +95,12 @@ Start with generating the training data.
 * Use weight map: be aware that using a weight map will increase GPU memory usage during training
 * Specify class balance weight factor: the class balance weight factor can correct for imbalanced classes, which is often the case for segmentented microscopy images (more background than object pixels). The BioSegNet tool calculates the foreground to background pixel ratio and can be used to determine an appriopriate class balance weight factor
 
-# Class balance weight factor calculation example 
+### Class balance weight factor calculation example 
 
 Foreground to background pixel ratio: 1 to 19. This means for one object pixel there are 19 black pixels with no information. To get a foreground to background pixel ratio of 1 to 1,
 we can set the weight factor to 1/19 which is roughly 0.05. That means that only 5% of the background pixels will be presented to the network during training. 
 
-#Model prediction
+### Model prediction
 
 * Select the project directory in which a trained model file has been generated 
 * Select the folder in which previously unseen 8-bit images are located in to test model prediction 
