@@ -58,6 +58,7 @@ class Control():
         webbrowser.open_new("https://github.com/bio-chris/BioSegNet")
 
     # go to main window
+    """
     def go_back(self, current_window, root):
 
         current_window.quit()
@@ -69,6 +70,7 @@ class Control():
 
         except:
             pass
+    """
 
     # open new window with specified width and height
     def new_window(self, window, title, width, height):
@@ -150,12 +152,12 @@ class Control():
 
         analysis_menu.add_command(label="Evaluate training performance", command=lambda:self.eval_train())
 
-        submenu.add_command(label="Help", command=lambda: self.help(window))
+        submenu.add_command(label="Help", command=lambda: self.help())
 
         # creates line to separate group items
         submenu.add_separator()
 
-        submenu.add_command(label="Go Back", command=lambda: self.go_back(window, root))
+        #submenu.add_command(label="Go Back", command=lambda: self.go_back(window, root))
         submenu.add_command(label="Exit", command=lambda: self.close_window(window))
 
     # extract tile size, original y and x resolution, list of tile images, list of images (prior to splitting)
@@ -1037,9 +1039,12 @@ class EasyMode(Control):
                 set_gpu_or_cpu = GPU_or_CPU(popupvar.get())
                 set_gpu_or_cpu.ret_mode()
 
+                mydata = Create_npy_files(ft_datapath.get())
+                zero_perc, fg_bg_ratio = mydata.check_class_balance()
+
                 learning_rate = 1e-4
                 batch_size = 1
-                balancer = 1
+                balancer = 1/fg_bg_ratio
 
 
                 if "weight_map" in model_list[0]:
@@ -1180,9 +1185,15 @@ class EasyMode(Control):
                 set_gpu_or_cpu = GPU_or_CPU(popupvar.get())
                 set_gpu_or_cpu.ret_mode()
 
+                zero_perc, fg_bg_ratio = mydata.check_class_balance()
+
+                print("\nAverage percentage of background pixels: ", zero_perc)
+                print("Foreground to background pixels ratio: ", fg_bg_ratio)
+                print("Class balance factor: ", 1/fg_bg_ratio, "\n")
+
                 learning_rate = 1e-4
                 batch_size = 1
-                balancer = 0.01
+                balancer = 1/fg_bg_ratio
 
                 # copy old model and rename to finetuned_model
                 old_model_name = modelpath.get().split(os.sep)[-1]

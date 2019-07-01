@@ -389,7 +389,7 @@ class BioSegNet(object):
         tensorboard = TensorBoard(log_dir=self.path + os.sep + "logs/{}".format(time()))
 
         # Set callback functions to early stop training and save the best model so far
-        callbacks = [EarlyStopping(monitor='val_loss', patience=5),
+        callbacks = [EarlyStopping(monitor='val_loss', patience=20),
                      ModelCheckpoint(filepath=self.path + os.sep + model_name + ".hdf5",
                                      monitor='val_loss', verbose=1, save_best_only=True),
                      csv_logger, tensorboard]

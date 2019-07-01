@@ -72,8 +72,10 @@ class Preprocess(object):
             x_tile = math.ceil(x / size)
             y_tile = math.ceil(y / size)
 
-            x_overlap = (np.abs(x - x_tile * size)) / (x_tile - 1)
-            y_overlap = (np.abs(y - y_tile * size)) / (y_tile - 1)
+            if x_tile > 1 and y_tile > 1:
+
+                x_overlap = (np.abs(x - x_tile * size)) / (x_tile - 1)
+                y_overlap = (np.abs(y - y_tile * size)) / (y_tile - 1)
 
             if (x_overlap.is_integer() and y_overlap.is_integer()) and (x_tile * y_tile) % 2 == 0:
 
@@ -107,8 +109,10 @@ class Preprocess(object):
         x_tile = math.ceil(x / tile_size)
         y_tile = math.ceil(y / tile_size)
 
-        x_overlap = (np.abs(x - x_tile * tile_size)) / (x_tile - 1)
-        y_overlap = (np.abs(y - y_tile * tile_size)) / (y_tile - 1)
+        if x_tile > 1 and y_tile > 1:
+
+            x_overlap = (np.abs(x - x_tile * tile_size)) / (x_tile - 1)
+            y_overlap = (np.abs(y - y_tile * tile_size)) / (y_tile - 1)
 
         # if column greater equal 1 then set start_x and end_x as follows
         if column >= 1:
@@ -481,9 +485,8 @@ class Augment(object):
 
 class Create_npy_files(Preprocess):
 
-    def __init__(self, path, data_path="aug_train", label_path="aug_label",
-                 test_path="test", weight_path="aug_weights", npy_path="npydata", img_type="tif"):
-
+    def __init__(self, path, data_path="aug_train", label_path="aug_label", weight_path="aug_weights",
+                 npy_path="npydata", img_type="tif"):
 
         Preprocess.__init__(self, train_path="train" + os.sep + "image", label_path="train" + os.sep + "label",
                             raw_path = "train" + os.sep + "RawImgs", img_type=img_type)
