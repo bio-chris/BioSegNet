@@ -4,16 +4,19 @@
 
 ## Before running the BioSegNet
 
-To run the BioSegNet, just download the standalone executable file and double-click to run. If your GPU has at least 2 GB of memory it is highly recommended to run training and prediction via GPU. You can alternatively run 
-the BioSegNet via CPU but be aware that the training and prediction will take longer than via GPU. 
+If you have a CUDA-capable GPU (all Nvidia GPUs from the G8x series onwards, including GeForce, Quadro and Tesla), then you will need to download the GPU-enabled version of the BioSegNet. You will furthermore have to download 
+and install CUDA 10.0 and cuDNN 7.6.1. 
 
-If planning to run the BioSegNet via GPU, we recommend to download and install the latest versions of CUDA and cuDNN to run the BioSegNet. 
+If you do not have a CUDA-capable GPU then you can alternatively download the CPU-enabled BioSegNet, which will run without CUDA or cuDNN. Be aware that running the BioSegNet on the CPU will be, depending on your CPU performance, 
+slower than the GPU version and it is not recommended to use this version for training on large data as this will likely take very long. 
+
+To get the best possible experience and results, we recommend to download the GPU-enabled BioSegNet. 
 
 ### Installing CUDA 10.0 
 
 https://developer.nvidia.com/cuda-10.0-download-archive
 
-### Installing cuDNN 7.5.1 
+### Installing cuDNN 7.6.1 
 
 To access the different versions of cuDNN click on the link below and create an account.  
 
