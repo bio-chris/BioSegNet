@@ -72,8 +72,15 @@ while(i==0){
 		
 		run("Restore Selection");
 		run("Clear", "slice");
-	
+
+		arr = split(org_title, ".");
+
 		saveAs("Tiff", directory_path + File.separator + "ground_truth_" + org_title);
+		org_title = arr[0] + ".tif";
+
+		print(org_title);
+
+		
 	}	 
 }
 

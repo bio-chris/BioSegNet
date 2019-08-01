@@ -1,16 +1,13 @@
 """
 
 Class Control
-
-Contains all functions that are necessary for the entire program
+    Contains all functions that are necessary for the entire program
 
 Class Advanced Mode
-
-Contains all functions necessary for the advanced mode
+    Contains all functions necessary for the advanced mode
 
 Class Easy Mode
-
-Contains all function necessary for the easy mode
+    Contains all function necessary for the easy mode
 
 """
 
@@ -54,7 +51,7 @@ class Control:
     # opens link to documentation of how to use the program
     def help(self):
 
-        webbrowser.open_new("https://github.com/bio-chris/BioSegNet")
+        webbrowser.open_new("https://github.com/bio-chris/MitoSegNet")
 
 
     # open new window with specified width and height
@@ -189,11 +186,16 @@ class Control:
 
             else:
 
+                #todo
+                y = []
+                x = []
+
                 for subfolders in os.listdir(path):
+
                     new_path = path + os.sep + subfolders
 
-                    y, x = get_shape(new_path, os.listdir(new_path))
-                    break
+                    y.append(get_shape(new_path, os.listdir(new_path))[0])
+                    x.append(get_shape(new_path, os.listdir(new_path))[1])
 
             return y, x
 
@@ -210,6 +212,7 @@ class Control:
             if cr_folders == True:
 
                 if img_datapath != "" and label_datapath != "":
+
                     create_project.copy_data(path=path, orgpath=img_datapath, labpath=label_datapath)
                     copy = True
 
@@ -245,6 +248,9 @@ class Control:
                 read_img = cv2.imread(imgpath + os.sep + img, -1)
                 read_lab = cv2.imread(labpath + os.sep + img, cv2.IMREAD_GRAYSCALE)
 
+                print(imgpath + os.sep + img)
+                print(labpath + os.sep + img)
+
                 labelled_img = label(read_lab)[0]
 
                 labelled_img_props = regionprops(label_image=labelled_img, intensity_image=read_img, coordinates='xy')
@@ -266,9 +272,9 @@ class Control:
                                                 np.std(measure) / np.sqrt(len(measure)), np.min(measure), np.max(measure),
                                                 len(measure)]
 
-
                 meas_str_l = ["Area", "Minor Axis Length", "Major Axis Length", "Eccentricity", "Perimeter", "Solidity",
                               "Mean Intensity", "Max Intensity", "Min Intensity"]
+
                 meas_l = [area, minor_axis_length, major_axis_length, eccentricity, perimeter, solidity, mean_int, max_int,
                           min_int]
 
@@ -295,51 +301,58 @@ class Control:
 
 
     def prediction(self, datapath, modelpath, pretrain, model_file, batch_var, popupvar, popupvar_meas, tile_size, y, x,
-                   min_obj_size, window):
-
-            pred_biosegnet = BioSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y,
-                                         org_img_cols=x)
-
-            set_gpu_or_cpu = GPU_or_CPU(popupvar)
-            set_gpu_or_cpu.ret_mode()
+                   min_obj_size, ps_filter, window):
 
 
-            if popupvar_meas == "No measurements":
-                datatype = False
-
-            elif popupvar_meas == "CSV Table":
-                datatype = "CSV"
-
-            else:
-                datatype = "Excel"
+        set_gpu_or_cpu = GPU_or_CPU(popupvar)
+        set_gpu_or_cpu.ret_mode()
 
 
-            if batch_var == "One folder":
+        if popupvar_meas == "No measurements":
+            datatype = False
 
-                if not os.path.lexists(datapath + os.sep + "Prediction"):
-                    os.mkdir(datapath + os.sep + "Prediction")
+        elif popupvar_meas == "CSV Table":
+            datatype = "CSV"
 
-                pred_biosegnet.predict(datapath, False, tile_size, model_file, pretrain, min_obj_size)
+        else:
+            datatype = "Excel"
 
-                self.get_measurements(datapath, datapath + os.sep + "Prediction", datatype, False)
 
-            else:
+        if batch_var == "One folder":
 
-                for subfolders in os.listdir(datapath):
 
-                    if not os.path.lexists(datapath + os.sep + subfolders + os.sep + "Prediction"):
-                        os.mkdir(datapath + os.sep + subfolders + os.sep + "Prediction")
+            pred_biosegnet = BioSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y, org_img_cols=x)
 
-                    pred_biosegnet.predict(datapath + os.sep + subfolders, False,
-                                            tile_size, model_file, pretrain, min_obj_size)
 
-                    labelpath = datapath + os.sep + subfolders + os.sep + "Prediction"
+            if not os.path.lexists(datapath + os.sep + "Prediction"):
+                os.mkdir(datapath + os.sep + "Prediction")
 
-                    self.get_measurements(datapath + os.sep + subfolders, labelpath, datatype,
-                                                   subfolders)
+            pred_biosegnet.predict(datapath, False, tile_size, model_file, pretrain, min_obj_size, ps_filter)
 
-            tkinter.messagebox.showinfo("Done", "Prediction successful! Check " + datapath + os.sep +
-                                        "Prediction" + " for segmentation results", parent=window)
+            self.get_measurements(datapath, datapath + os.sep + "Prediction", datatype, False)
+
+        else:
+
+            for i, subfolders in enumerate(os.listdir(datapath)):
+
+                pred_biosegnet = BioSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y[i],
+                                           org_img_cols=x[i])
+
+
+                if not os.path.lexists(datapath + os.sep + subfolders + os.sep + "Prediction"):
+                    os.mkdir(datapath + os.sep + subfolders + os.sep + "Prediction")
+
+
+                pred_biosegnet.predict(datapath + os.sep + subfolders, False,
+                                        tile_size, model_file, pretrain, min_obj_size, ps_filter)
+
+                labelpath = datapath + os.sep + subfolders + os.sep + "Prediction"
+
+                self.get_measurements(datapath + os.sep + subfolders, labelpath, datatype,
+                                               subfolders)
+
+        tkinter.messagebox.showinfo("Done", "Prediction successful! Check " + datapath + os.sep +
+                                    "Prediction" + " for segmentation results", parent=window)
 
 
     def place_gpu(self, popupvar, x, y, window):
@@ -491,10 +504,12 @@ class AdvancedMode(Control):
         self.place_text(data_root, "Specify augmentation operations", 20, 190, None, None)
 
         horizontal_flip = StringVar(data_root)
+        horizontal_flip.set(False)
         hf_button = Checkbutton(data_root, text="Horizontal flip", variable=horizontal_flip, onvalue=True, offvalue=False)
         hf_button.place(bordermode=OUTSIDE, x=30, y=210, height=30, width=120)
 
         vertical_flip = StringVar(data_root)
+        vertical_flip.set(False)
         vf_button = Checkbutton(data_root, text="Vertical flip", variable=vertical_flip, onvalue=True, offvalue=False)
         vf_button.place(bordermode=OUTSIDE, x=150, y=210, height=30, width=120)
 
@@ -515,11 +530,12 @@ class AdvancedMode(Control):
         self.place_text(data_root, "Zoom range (Range for random zoom)", 30, 420, None, None)
         self.place_entry(data_root, zoom_range, 370, 410, 30, 50)
 
-        self.place_text(data_root, "Brigthness range (Range for random brightness change)", 30, 460, None, None)
+        self.place_text(data_root, "Brightness range (Range for random brightness change)", 30, 460, None, None)
         self.place_entry(data_root, brigthness_range, 370, 450, 30, 50)
 
 
         check_weights = StringVar(data_root)
+        check_weights.set(False)
         Checkbutton(data_root, text="Create weight map", variable=check_weights, onvalue=True,
                     offvalue=False).place(bordermode=OUTSIDE, x=30, y=500, height=30, width=150)
 
@@ -539,7 +555,7 @@ class AdvancedMode(Control):
 
                 self.preprocess.splitImgs(dir_data_path.get(), tile_size.get(), tile_number.get())
 
-                final_brigthness_range = (1 + brigthness_range.get(), 1 - brigthness_range.get())
+                final_brigthness_range = (1 - brigthness_range.get(), 1 + brigthness_range.get())
 
                 aug = Augment(dir_data_path.get(), shear_range.get(), rotation_range.get(), zoom_range.get(),
                               final_brigthness_range, hf, vf, width_shift.get(), height_shift.get())
@@ -627,6 +643,7 @@ class AdvancedMode(Control):
 
                 else:
 
+                    use_weight_map.set(False)
                     Checkbutton(cont_training, text="Use weight map", variable=use_weight_map, onvalue=True,
                                 offvalue=False).place(bordermode=OUTSIDE, x=30, y=250, height=30, width=120)
 
@@ -794,6 +811,12 @@ class AdvancedMode(Control):
         self.place_browse(askopendir_test_pred, text_s, dir_data_path_test_prediction, 20, 100, None, None,
                                    cont_prediction_window)
 
+        ps_filter = StringVar(cont_prediction_window)
+        ps_filter.set(False)
+        psf_button = Checkbutton(cont_prediction_window, text="Post-segmentation filtering", variable=ps_filter, onvalue=True,
+                                 offvalue=False)
+        psf_button.place(bordermode=OUTSIDE, x=15, y=400, height=30, width=200)
+
         def start_prediction():
 
             if dir_data_path_prediction.get() != "" and found.get() == 1 and dir_data_path_test_prediction.get() != "":
@@ -810,7 +833,7 @@ class AdvancedMode(Control):
 
                 self.prediction(dir_data_path_test_prediction.get(), dir_data_path_prediction.get(), "",
                                          model_name.get(), batch_var.get(), popup_var.get(), popupvar_meas.get(),
-                                         tile_size, y, x, min_obj_size.get(), cont_prediction_window)
+                                         tile_size, y, x, min_obj_size.get(), ps_filter.get(), cont_prediction_window)
 
             else:
 
@@ -818,7 +841,7 @@ class AdvancedMode(Control):
 
         self.place_prediction_text(min_obj_size, batch_var, popup_var, popupvar_meas, cont_prediction_window)
 
-        self.place_button(cont_prediction_window, "Start prediction", start_prediction, 360, 380, 30, 110)
+        self.place_button(cont_prediction_window, "Start prediction", start_prediction, 360, 410, 30, 110)
 
     ##########################################
 
@@ -956,6 +979,14 @@ class EasyMode(Control):
         self.place_prediction_text(min_obj_size ,batch_var, popupvar, popupvar_meas, p_pt_root)
 
 
+
+        ps_filter = StringVar(p_pt_root)
+        ps_filter.set(False)
+        psf_button = Checkbutton(p_pt_root, text="Post-segmentation filtering", variable=ps_filter, onvalue=True,
+                                offvalue=False)
+        psf_button.place(bordermode=OUTSIDE, x=15, y=400, height=30, width=200)
+
+
         def start_prediction_pretrained():
 
             if datapath.get() != "" and modelpath.get() != "":
@@ -973,15 +1004,17 @@ class EasyMode(Control):
 
                     y, x = self.get_image_info(datapath.get(), True, True)
 
+
                 self.prediction(datapath.get(), datapath.get(), modelpath.get(), model_file, batch_var.get(),
-                                popupvar.get(), popupvar_meas.get(), tile_size, y, x, min_obj_size.get(), p_pt_root)
+                                popupvar.get(), popupvar_meas.get(), tile_size, y, x, min_obj_size.get(), ps_filter.get(),
+                                p_pt_root)
 
             else:
 
                 tkinter.messagebox.showinfo("Error", "Entries not completed", parent=p_pt_root)
 
 
-        self.place_button(p_pt_root, "Start prediction", start_prediction_pretrained, 360, 380, 30, 110)
+        self.place_button(p_pt_root, "Start prediction", start_prediction_pretrained, 360, 410, 30, 110)
 
     def pre_finetune_pretrained(self):
 
@@ -1082,6 +1115,7 @@ class EasyMode(Control):
         img_datapath = StringVar(ft_pt_root)
         label_datapath = StringVar(ft_pt_root)
         modelpath = StringVar(ft_pt_root)
+        augmentations = IntVar(ft_pt_root)
         epochs = IntVar(ft_pt_root)
         popupvar = StringVar(ft_pt_root)
 
@@ -1113,13 +1147,17 @@ class EasyMode(Control):
         text = "Select pretrained model file"
         self.place_browse(askopenmodel, text, modelpath, 15, 220, None, None, ft_pt_root)
 
+        # set number of augmentations
+        self.place_text(ft_pt_root, "Number of augmentations", 30, 280, None, None)
+        self.place_entry(ft_pt_root, augmentations, 250, 275, 30, 50)
+
         # set number of epochs
-        self.place_text(ft_pt_root, "Number of epochs", 30, 300, None, None)
-        self.place_entry(ft_pt_root, epochs, 250, 295, 30, 50)
+        self.place_text(ft_pt_root, "Number of epochs", 30, 320, None, None)
+        self.place_entry(ft_pt_root, epochs, 250, 315, 30, 50)
 
 
         # set gpu or cpu training
-        self.place_gpu(popupvar, 20, 340, ft_pt_root)
+        self.place_gpu(popupvar, 20, 350, ft_pt_root)
 
         def start_training():
 
@@ -1147,14 +1185,17 @@ class EasyMode(Control):
 
                 n_tiles = int(math.ceil(y/tile_size)*math.ceil(x/tile_size))
 
+                if n_tiles % 2 != 0:
+                    n_tiles+=1
+
                 self.preprocess.splitImgs(parent_path + os.sep + folder_name.get(), tile_size, n_tiles)
 
                 # augment the tiles automatically (no user adjustments)
 
-                shear_range = 0.2
+                shear_range = 0.3
                 rotation_range = 180
-                zoom_range = 0.2
-                brightness_range = 0.2
+                zoom_range = 0.3
+                brightness_range = (0.8, 1.2)
                 hf = True
                 vf = True
                 width_shift = 0.2
@@ -1169,7 +1210,7 @@ class EasyMode(Control):
                 else:
                     wmap = False
 
-                n_aug = 50
+                n_aug = augmentations.get()
 
                 aug.start_augmentation(imgnum=n_aug, wmap=wmap, tile_size=tile_size)
                 aug.splitMerge(wmap=wmap)
@@ -1214,7 +1255,7 @@ class EasyMode(Control):
 
                 tkinter.messagebox.showinfo("Error", "Entries missing or not correct", parent=ft_pt_root)
 
-        self.place_button(ft_pt_root, "Start training", start_training, 200, 390, 30, 100)
+        self.place_button(ft_pt_root, "Start training", start_training, 200, 400, 30, 100)
 
 
 if __name__ == '__main__':

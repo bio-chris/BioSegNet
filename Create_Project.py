@@ -2,7 +2,7 @@ import os
 from shutil import copyfile
 import tkinter.messagebox
 
-class CreateProject(object):
+class CreateProject:
 
     def __init__(self, project_name):
 

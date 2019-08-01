@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sb
 
 
-class AnalyseData(object):
+class AnalyseData:
 
     def __init__(self):
 

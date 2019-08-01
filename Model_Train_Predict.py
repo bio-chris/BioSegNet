@@ -27,10 +27,12 @@ from time import time
 from math import sqrt
 from skimage.morphology import remove_small_objects
 from scipy.ndimage import label
+from screeninfo import get_monitors
+from tkinter import *
+from tkinter import messagebox
 
 
-
-class GPU_or_CPU(object):
+class GPU_or_CPU:
 
 
     def __init__(self, mode):
@@ -72,7 +74,7 @@ max pooling operations are applied to a layer with an even x and y size
 """
 
 
-class BioSegNet(object):
+class BioSegNet:
 
 
     def __init__(self, path, img_rows, img_cols, org_img_rows, org_img_cols):
@@ -105,6 +107,19 @@ class BioSegNet(object):
         imgs_train = np.load(self.path + os.sep + "npydata" + os.sep +"imgs_train.npy")
         imgs_mask_train = np.load(self.path + os.sep + "npydata" + os.sep + "imgs_mask_train.npy")
 
+        # todo
+        """
+        # checking label data for values other than 0 or 255
+        l_int = list(range(1, 255))
+        print("Checking label data")
+        l_check = (np.isin(np.unique(imgs_mask_train), l_int))
+
+        if True in l_check:
+            
+            print("Errors in binary mask detected. Aborting.")
+            exit()
+        """
+
         imgs_train = imgs_train.astype('float32')
         imgs_mask_train = imgs_mask_train.astype('float32')
 
@@ -114,10 +129,14 @@ class BioSegNet(object):
         imgs_mask_train[imgs_mask_train > 0.5] = 1
         imgs_mask_train[imgs_mask_train <= 0.5] = 0
 
+        # todo 18-07-19
         if wmap == True:
 
             imgs_weights = np.load(self.path + os.sep + "npydata" + os.sep + "imgs_weights.npy")
             imgs_weights = imgs_weights.astype('float32')
+
+            # due to brightness changes in augmentation, some weight images have a 0 background
+            imgs_weights[imgs_weights == 0] = 1
 
             # setting background pixel weights to vbal (because of class imbalance)
             imgs_weights[imgs_weights == 1] = vbal
@@ -433,12 +452,14 @@ class BioSegNet(object):
 
         info_file = open(self.path + os.sep + model_name + str(first_ep) + "-" + str(last_ep) + "_train_info.txt", "w")
         info_file.write("Learning rate: " + str(learning_rate)+
-                        "\nBatch size: " + str(batch_size))
+                        "\nBatch size: " + str(batch_size)+
+                        "\nClass balance weight factor: " + str(vbal))
         info_file.close()
 
         K.clear_session()
 
-    def predict(self, test_path, wmap, tile_size, model_name, pretrain):
+    # todo
+    def predict(self, test_path, wmap, tile_size, model_name, pretrain, min_obj_size, ps_filter):
 
         """
         :return:
@@ -463,16 +484,67 @@ class BioSegNet(object):
 
             imgs = glob.glob(test_path + os.sep + "*")
 
-            if org_img_cols < tile_size or org_img_rows < tile_size:
+            #todo
 
-                bs_x = int((tile_size * 2 - org_img_cols) / 2)
-                bs_y = int((tile_size * 2 - org_img_rows) / 2)
+            if org_img_cols < tile_size:
+                bs_x = int((tile_size - org_img_cols) / 2)
+            else:
+                bs_x = 40
+
+            if org_img_rows < tile_size:
+                bs_y = int((tile_size - org_img_rows) / 2)
+            else:
+                bs_y = 40
+
+
+            """
+            if org_img_cols < tile_size and org_img_rows < tile_size:
+
+                #bs_x = int((tile_size * 2 - org_img_cols) / 2)
+                #bs_y = int((tile_size * 2 - org_img_rows) / 2)
+
+                bs_x = int((tile_size - org_img_cols) / 2)
+                bs_y = int((tile_size - org_img_rows) / 2)
 
             else:
+                
 
-                bs_x = 50
-                bs_y = 50
+                bs_x = 40
+                bs_y = 40
+            """
 
+            def get_tile_values(org_img_cols, org_img_rows, bs_x, bs_y, tile_size):
+
+                x = org_img_cols + 2 * bs_x
+                y = org_img_rows + 2 * bs_y
+
+                ###############
+                x_tile = math.ceil(x / tile_size)
+                y_tile = math.ceil(y / tile_size)
+
+                x_overlap = (np.abs(x - x_tile * tile_size)) / (x_tile - 1)
+                y_overlap = (np.abs(y - y_tile * tile_size)) / (y_tile - 1)
+
+                return x, y, x_tile, y_tile, x_overlap, y_overlap
+
+            x, y, x_tile, y_tile, x_overlap, y_overlap = get_tile_values(org_img_cols, org_img_rows, bs_x, bs_y,
+                                                                         tile_size)
+
+
+            while not x_overlap.is_integer():
+
+                bs_x+=1
+                x, y, x_tile, y_tile, x_overlap, y_overlap = get_tile_values(org_img_cols, org_img_rows, bs_x, bs_y,
+                                                                             tile_size)
+    
+            while not y_overlap.is_integer():
+                bs_y+=1
+                x, y, x_tile, y_tile, x_overlap, y_overlap = get_tile_values(org_img_cols, org_img_rows, bs_x, bs_y,
+                                                                             tile_size)
+
+            print(x_overlap, bs_x, x, y)
+
+            """
             x = org_img_cols + 2*bs_x
             y = org_img_rows + 2*bs_y
 
@@ -482,6 +554,11 @@ class BioSegNet(object):
 
             x_overlap = (np.abs(x - x_tile * tile_size)) / (x_tile - 1)
             y_overlap = (np.abs(y - y_tile * tile_size)) / (y_tile - 1)
+            """
+
+            ################# temp 09-07-19
+
+            #################
 
             n_tiles = x_tile * y_tile
             ###############
@@ -531,6 +608,8 @@ class BioSegNet(object):
             for imgname in imgs:
 
                 if ".tif" in imgname:
+
+                    print(imgname)
 
                     img = cv2.imread(imgname, cv2.IMREAD_GRAYSCALE)
 
@@ -628,8 +707,10 @@ class BioSegNet(object):
         org_img_list = list(set(org_img_list))
         org_img_list.sort(key=self.natural_keys)
 
+
         # saving arrays as images
         print("Array to image")
+
 
         imgs = np.load(test_path + os.sep + 'imgs_mask_array.npy')
 
@@ -662,6 +743,8 @@ class BioSegNet(object):
             #############################################################
             # if we are in first or last column, the real x tile size is dependant on both border size and x overlap
             if column == 0 or column == x_tile - 1:
+
+
                 real_x_tile = int(tile_size - bs_x - x_overlap / 2)
                 #border_x = bs_x
 
@@ -726,6 +809,7 @@ class BioSegNet(object):
             # prior to stitching the overlapping sections and the padding have to be removed
             cut_img = img[int(start_y):int(end_y), int(start_x):int(end_x)]
 
+
             current_img[int(final_start_y):int(final_end_y), int(final_start_x):int(final_end_x)] = cut_img
 
             start_x = int(x_overlap / 2)
@@ -759,13 +843,68 @@ class BioSegNet(object):
                 current_img = current_img.astype(np.uint8)
 
                 label_image, num_features = label(current_img)
-                new_image = remove_small_objects(label_image, 10)
+
+                # allow user to specify what minimum object size should be (originally set to 10)
+                new_image = remove_small_objects(label_image, int(min_obj_size))
 
                 new_image[new_image != 0] = 255
 
-                cv2.imwrite(test_path + os.sep + "Prediction" + os.sep + org_img_list[org_img_list_index], new_image)
+
+                """       
+                Here we can insert a step to display both the prediction and the original image and allow the user
+                to select which images will be saved and which ones discarded    
+                """
+
+                ############################################
+
+                if ps_filter == "1":
+
+                    screen_res = str(get_monitors()[0])
+                    screen_res = (screen_res.split("(")[1])
+
+                    x_res = int(screen_res.split("x")[0])
+
+                    y_res = screen_res.split("x")[1]
+                    y_res = int(y_res.split("+")[0])
+
+
+                    cv2.namedWindow('Prediction', cv2.WINDOW_NORMAL)
+                    cv2.namedWindow('Original', cv2.WINDOW_NORMAL)
+
+                    # image resizing factor for display
+                    f = 2.5 * (x / x_res)
+
+                    # x , y
+                    cv2.resizeWindow('Prediction', int(x / f), int(y / f))
+                    cv2.moveWindow("Prediction", int(0.1 * x_res), int(0.1 * y_res))
+
+                    cv2.resizeWindow('Original', int(x / f), int(y / f))
+                    cv2.moveWindow("Original", int(0.5 * x_res), int(0.1 * y_res))
+
+                    cv2.imshow("Prediction", new_image.astype(np.uint8))
+
+                    org_img = cv2.imread(test_path + os.sep + org_img_list[org_img_list_index])
+                    cv2.imshow("Original", org_img)
+
+
+                    print("\nPress s to save the image and any other key to discard it\n")
+
+                    cv2.waitKey(115)
+
+                    if cv2.waitKey() == ord("s"):
+                        print(org_img_list[org_img_list_index] + " saved")
+                        cv2.imwrite(test_path + os.sep + "Prediction" + os.sep + org_img_list[org_img_list_index], new_image)
+
+                    else:
+                        print(org_img_list[org_img_list_index] + " discarded")
+
+                    cv2.destroyAllWindows()
+
+                else:
+                    cv2.imwrite(test_path + os.sep + "Prediction" + os.sep + org_img_list[org_img_list_index], new_image)
 
                 org_img_list_index+=1
                 img_nr = 0
+
 
         K.clear_session()

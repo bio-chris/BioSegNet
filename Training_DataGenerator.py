@@ -31,7 +31,7 @@ from scipy.ndimage.morphology import distance_transform_edt as get_dmap
 from keras.preprocessing.image import ImageDataGenerator
 
 
-class Preprocess(object):
+class Preprocess:
 
     def __init__(self, train_path="train" + os.sep + "image", label_path="train" + os.sep + "label",
                  raw_path = "train" + os.sep + "RawImgs", img_type="tif"):
@@ -84,9 +84,35 @@ class Preprocess(object):
 
             size += 16
 
-        if x == y:
+        if x == y and x%16 == 0:
             displ_values.add("Tile size (px): " + str(x) + " | Number of tiles: " + str(1))
             real_values.append((x, 1))
+
+
+        # using one tile when image size is small but not of square shape and x,y % 16 != 0
+        #######
+
+        x_old = x
+        x_new = x
+        if x>y:
+            while x_new%16 != 0:
+                x_new+=2
+
+            bs_x = x_new-x_old
+
+        y_new = y
+        if x < y:
+            while y_new % 16 != 0:
+                y_new += 2
+
+            bs_x = y_new - x
+
+
+        displ_values.add("Tile size (px): " + str(x+bs_x) + " | Number of tiles: " + str(1))
+        real_values.append((x+bs_x, 1))
+
+
+        #######
 
         return displ_values, real_values
 
@@ -109,9 +135,14 @@ class Preprocess(object):
         x_tile = math.ceil(x / tile_size)
         y_tile = math.ceil(y / tile_size)
 
-        if x_tile > 1 and y_tile > 1:
+        # todo
+        #if x_tile > 1 and y_tile > 1:
+        if x_tile > 1 or y_tile > 1:
 
             x_overlap = (np.abs(x - x_tile * tile_size)) / (x_tile - 1)
+
+        if y_tile > 1:
+
             y_overlap = (np.abs(y - y_tile * tile_size)) / (y_tile - 1)
 
         # if column greater equal 1 then set start_x and end_x as follows
@@ -151,6 +182,8 @@ class Preprocess(object):
         """
 
         if n_tiles%2!=0 and n_tiles!=1 or tile_size%16!=0:
+
+            print(n_tiles)
             print("Incorrect number of tiles or tile size not divisible by 16.\nAborting")
             exit()
 
@@ -173,14 +206,57 @@ class Preprocess(object):
                 exit()
 
             read_lab = cv2.imread(path_raw + os.sep + "label" + os.sep + img, cv2.IMREAD_GRAYSCALE)
+
             y, x = read_img.shape
 
-            if tile_size > max(y,x)/2+16 and n_tiles!=1:
-                print("Tile size to big.\nAborting")
-                exit()
+            #print(img, y, x)
+
+            # todo
+            #if tile_size > max(y,x)/2+16 and n_tiles!=1:
+
+            if tile_size > x:
+
+                bs_x = int((tile_size - x) / 2)
+                bs_y = 0
+
+                read_img = cv2.copyMakeBorder(read_img, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+                read_lab = cv2.copyMakeBorder(read_lab, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+
+            if tile_size > y:
+
+                bs_y = int((tile_size - y) / 2)
+                bs_x = 0
+
+                read_img = cv2.copyMakeBorder(read_img, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+                read_lab = cv2.copyMakeBorder(read_lab, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+
+
+            """
+            if tile_size > max(y, x) / 2 + 16: 
+
+                print("Image to small for selected tile size. Adding border")
+
+                ######
+
+                bs_x = int((tile_size - x) / 2)
+                bs_y = int((tile_size - y) / 2)
+
+                read_img = cv2.copyMakeBorder(read_img, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+                read_lab = cv2.copyMakeBorder(read_lab, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+
+                y, x = read_img.shape
+
+                ######
+
+                #exit()
+            """
 
             # splitting image into n tiles of predefined size
             #############
+
+            # todo
+            # resetting n_tiles based on new image size
+            n_tiles = int(math.ceil(y / tile_size) * math.ceil(x / tile_size))
 
             start_y = 0
             start_x = 0
@@ -204,7 +280,7 @@ class Preprocess(object):
                 #############
 
 
-class Augment(object):
+class Augment:
     """
     A class used to augment image
     Firstly, read train image and label separately, and then merge them together for the next process
@@ -212,9 +288,8 @@ class Augment(object):
     Finally, separate augmented image apart into train image and label
     """
 
-    #todo
-    def __init__(self, path, shear_range, rotation_range, zoom_range, horizontal_flip, vertical_flip, width_shift_range,
-                 height_shift_range, train_path="train" + os.sep + "image", label_path="train" + os.sep + "label",
+    def __init__(self, path, shear_range, rotation_range, zoom_range, brightness_range, horizontal_flip, vertical_flip,
+                 width_shift_range, height_shift_range, train_path="train" + os.sep + "image", label_path="train" + os.sep + "label",
                  raw_path = "train" + os.sep + "RawImgs", merge_path="merge", aug_merge_path="aug_merge",
                  aug_train_path="aug_train", aug_label_path="aug_label", img_type="tif", weights_path="weights",
                  aug_weights_path="aug_weights"):
@@ -227,6 +302,7 @@ class Augment(object):
         self.shear_range = shear_range
         self.rotation_range = rotation_range
         self.zoom_range = zoom_range
+        self.brightness_range = brightness_range
         self.horizontal_flip = horizontal_flip
         self.vertical_flip = vertical_flip
         self.width_shift_range = width_shift_range
@@ -247,12 +323,14 @@ class Augment(object):
 
         self.map_path = self.path + os.sep + weights_path
 
+        # todo
         # ImageDataGenerator performs augmentation on original images
         self.datagen = ImageDataGenerator(
 
             shear_range=self.shear_range,
             rotation_range=self.rotation_range,
             zoom_range=self.zoom_range,
+            brightness_range=self.brightness_range,
             horizontal_flip=self.horizontal_flip,
             vertical_flip=self.vertical_flip,
             width_shift_range=self.width_shift_range,
@@ -260,7 +338,6 @@ class Augment(object):
             fill_mode='reflect')  # pixels outside boundary are set to 0
 
     def start_augmentation(self, imgnum, wmap, tile_size):
-
 
         def create_distance_weight_map(label, w0=10, sigma=5):
 
@@ -347,56 +424,60 @@ class Augment(object):
         # iterate through folder, merge label, original images and save to merged folder
         for count, image in enumerate(os.listdir(path_train)):
 
-            #print(image)
+            print(image)
 
             x_t = cv2.imread(path_train + os.sep  + image, cv2.IMREAD_GRAYSCALE)
             x_l = cv2.imread(path_label + os.sep  + image, cv2.IMREAD_GRAYSCALE)
 
-
-            # 19/06/19 todo
-            if x_t.shape[1] < tile_size or x_t.shape[0] < tile_size:
-                bs_x = int((tile_size - x_t.shape[1]) / 2)
-                bs_y = int((tile_size - x_t.shape[0]) / 2)
-
-                x_t = cv2.copyMakeBorder(x_t, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
-                x_l = cv2.copyMakeBorder(x_l, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
-
-            if wmap == False:
-                x_w = np.zeros((x_l.shape[0], x_l.shape[1]))
+            # exclude image tiles without any labels
+            if np.count_nonzero(x_l) == 0:
+                pass
 
             else:
-                #create weight map
-                x_w = create_distance_weight_map(x_l)
 
-            # create empty array (only 0s) with shape (x,y, number of channels)
-            aug_img = np.zeros((x_t.shape[0], x_l.shape[1], 3))
+                if x_t.shape[1] < tile_size or x_t.shape[0] < tile_size:
+                    bs_x = int((tile_size - x_t.shape[1]) / 2)
+                    bs_y = int((tile_size - x_t.shape[0]) / 2)
 
-            # setting each channel to label, empty array and original
+                    x_t = cv2.copyMakeBorder(x_t, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
+                    x_l = cv2.copyMakeBorder(x_l, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
 
-            aug_img[:, :, 2] = x_l
-            aug_img[:, :, 1] = x_w
-            aug_img[:, :, 0] = x_t
+                if wmap == False:
+                    x_w = np.zeros((x_l.shape[0], x_l.shape[1]))
 
-            if wmap == True:
+                else:
+                    #create weight map
+                    x_w = create_distance_weight_map(x_l)
 
-                #increasing intensity values of label images (to 255 if value was > 0)
-                for x in np.nditer(aug_img[:,:,2], op_flags=['readwrite']):
-                    x[...] = x * 255
+                # create empty array (only 0s) with shape (x,y, number of channels)
+                aug_img = np.zeros((x_t.shape[0], x_l.shape[1], 3))
+
+                # setting each channel to label, empty array and original
+
+                aug_img[:, :, 2] = x_l
+                aug_img[:, :, 1] = x_w
+                aug_img[:, :, 0] = x_t
+
+                if wmap == True:
+
+                    #increasing intensity values of label images (to 255 if value was > 0)
+                    for x in np.nditer(aug_img[:,:,2], op_flags=['readwrite']):
+                        x[...] = x * 255
 
 
-            # write final merged image
-            aug_img = aug_img.astype('uint8')
-            cv2.imwrite(path_merge + os.sep + image, aug_img)
+                # write final merged image
+                aug_img = aug_img.astype('uint8')
+                cv2.imwrite(path_merge + os.sep + image, aug_img)
 
-            img = aug_img
-            img = img.reshape((1,) + img.shape)
+                img = aug_img
+                img = img.reshape((1,) + img.shape)
 
-            savedir = path_aug_merge + os.sep + image
+                savedir = path_aug_merge + os.sep + image
 
-            if not os.path.lexists(savedir):
-                os.mkdir(savedir)
+                if not os.path.lexists(savedir):
+                    os.mkdir(savedir)
 
-            self.doAugmentate(img, savedir, image, imgnum)
+                self.doAugmentate(img, savedir, image, imgnum)
 
 
         aug_params_file = open(self.path + os.sep + "augmentation_parameters.txt", "w")
@@ -406,7 +487,8 @@ class Augment(object):
                               "\nHeight shift range: " + str(self.height_shift_range) +
                               "\nShear range: " + str(self.shear_range) +
                               "\nRotation range: " + str(self.rotation_range) +
-                              "\nZoom range: " + str(self.zoom_range))
+                              "\nZoom range: " + str(self.zoom_range) +
+                              "\nBrightness range: " + str(self.brightness_range))
 
         aug_params_file.close()
 
@@ -472,6 +554,10 @@ class Augment(object):
 
                 img_train = img[:, :, 2]  # cv2 read image rgb->bgr
                 img_label = img[:, :, 0]
+
+                #todo
+                # setting intensity values back to 255 after brightness change
+                #img_label[img_label > 0] = 255
 
                 cv2.imwrite(path_train + os.sep + image + os.sep + midname, img_train)
                 cv2.imwrite(path_label + os.sep + image + os.sep + midname, img_label)
