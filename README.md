@@ -38,8 +38,11 @@ If you are unfamiliar with deep learning concepts such as batch size, learning r
 * Select directory in which 8-bit raw images are stored:
 * Images have to be 8-bit, tif format and single plane. Use the macro MitoSegNet_PreProcessing.ijm for automated conversion of a large number of images (Prerequisite for macro usage is installation of Bio-Formats plugin on Fiji)
 * Select pretrained_model_656.hdf5 (which can be found in installation folder)
+* Enter minimum object size (in pixels) to exclude noise from the final segmentation 
 * Depending if you have all images in one folder, or multiple set of images in sub-folders you can select to apply the model to one folder or multiple folders (Folder > Subfolder > Images)
 * Select to predict on GPU or CPU 
+* Generate measurement table: this will automatically generate CSV or Excel sheets (one per folder) containing statistical values of various morphological parameters and intensity for each image. For a more detailed analysis, use the MitoSegNet Analyser 
+* Post-segmentation filtering: shows each generated segmentation automatically to allow User to choose which masks to save and which to discard
 
 Once all entries are filled, click on "Start prediction" and wait until a Done window opens to notify of the successful completion.
 
