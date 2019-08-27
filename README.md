@@ -56,7 +56,7 @@ Select "New" if you are starting a new finetuning project or "Existing" if you w
 * Select pretrained_model_656.hdf5
 * Specify the number of augmentations (defines the number of times the original image will be duplicated and augmented. Start with a minimum of 10 augmentations per image. Increase until results no longer improve)
 * Specify the number of epochs (defines the repetitions the training process will run through to learn how to segment the images based on the new input)
-* Select to train on GPU or CPU 
+* Select to train on GPU or CPU (only on GPU version)
 
 Once all entries are filled, click on "Start training" and wait until a Done window opens to notify of the successful completion. 
 In the parent directory of the raw image and label image folder a Finetune_folder will be generated in which all the newly augmented data, image arrays and finetuned models will be stored.
@@ -92,6 +92,11 @@ Start with generating the training data.
 	* Horizontal flip
 	* Vertical flip 
 	* Width shift range
+	* Height shift range
+	* Shear range
+	* Rotation range
+	* Zoom range
+	* Brightness range
 * Create weight map: a weight map shows objects that are in close proximity to each other and is used to force the convolutional neural network to learn border separations. Be aware that when selecting "Create weight map" that the augmentation process will take longer and the training data will use more disk space 
 
 ### Train model
@@ -102,7 +107,7 @@ Start with generating the training data.
 * Specify learning rate: the learning rate controls how quickly or slowly a neural network model learns a problem
 * Specify batch size: select the number of tiles that are fed into the network each iteration. The maximum batch size is limited by your GPU memory
 * Use weight map: be aware that using a weight map will increase GPU memory usage during training
-* Specify class balance weight factor: the class balance weight factor can correct for imbalanced classes, which is often the case for segmentented microscopy images (more background than object pixels). The MitoSegNet tool calculates the foreground to background pixel ratio and can be used to determine an appriopriate class balance weight factor
+* Specify class balance weight factor: the class balance weight factor can correct for imbalanced classes, which is often the case for segmentented microscopy images (more background than object pixels). The MitoSegNet calculates the foreground to background pixel ratio and can be used to determine an appriopriate class balance weight factor
 
 ### Class balance weight factor calculation example 
 
@@ -113,4 +118,8 @@ we can set the weight factor to 1/19 which is roughly 0.05. That means that only
 
 * Select the project directory in which a trained model file has been generated 
 * Select the folder in which previously unseen 8-bit images are located in to test model prediction 
-* If the folder contains only images files you may select "One folder" but in case it contains subfolders in which the images are located, then select "Multiple folders" to generate segmentations for all subfolders 
+	* If the folder contains only images files you may select "One folder" but in case it contains subfolders in which the images are located, then select "Multiple folders" to generate segmentations for all subfolders 
+* Enter minimum object size (in pixels) to exclude noise from the final segmentation 
+* Select to train on GPU or CPU (only on GPU version)
+* Post-segmentation filtering: shows each generated segmentation automatically to allow User to choose which masks to save and which to discard
+
