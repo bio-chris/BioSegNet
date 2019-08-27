@@ -1,23 +1,22 @@
 """"
 
-Notes:
+class GPU or CPU
+    Lets user decide which component to use for processing
 
-weight map functionality has been removed (24/09/18): accuracy does not improve with usage of weigth map
+class MitoSegNet
+    Main Deep Learning Architecture (based on U-Net)
 
-
-number of conv layers: 24
-number of relu units: 23
-number of sigmoid units: 1 (after last conv layer)
-number of batch norm layers: 10
-number of max pooling layers: 4
-
+    number of conv layers: 24
+    number of relu units: 23
+    number of sigmoid units: 1 (after last conv layer)
+    number of batch norm layers: 10
+    number of max pooling layers: 4
 
 """
 
 
 import os
 import cv2
-import re
 import numpy as np
 import pandas as pd
 import math
@@ -29,11 +28,9 @@ from skimage.morphology import remove_small_objects
 from scipy.ndimage import label
 from screeninfo import get_monitors
 from tkinter import *
-from tkinter import messagebox
 
 
 class GPU_or_CPU:
-
 
     def __init__(self, mode):
 
@@ -52,7 +49,7 @@ class GPU_or_CPU:
         return self.mode
 
 
-from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization, Dropout
+from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization
 from keras.models import Model
 from keras.optimizers import Adam
 from keras.initializers import RandomNormal as gauss
@@ -63,19 +60,7 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger, TensorBoa
 from Training_DataGenerator import *
 
 
-"""
-
-16/01/18
-
-Image size needs to be divisible by 2:
-To allow seamless tiling of the output segmentation map, input tile size needs to be selected such that all 2x2
-max pooling operations are applied to a layer with an even x and y size
-
-"""
-
-
-class BioSegNet:
-
+class MitoSegNet:
 
     def __init__(self, path, img_rows, img_cols, org_img_rows, org_img_cols):
 
@@ -86,7 +71,6 @@ class BioSegNet:
 
         self.org_img_rows = org_img_rows
         self.org_img_cols = org_img_cols
-
 
     def natural_keys(self, text):
 
@@ -99,7 +83,6 @@ class BioSegNet:
 
     def load_data(self, wmap, vbal):
 
-
         print('-' * 30)
         print('Load train images...')
         print('-' * 30)
@@ -107,7 +90,7 @@ class BioSegNet:
         imgs_train = np.load(self.path + os.sep + "npydata" + os.sep +"imgs_train.npy")
         imgs_mask_train = np.load(self.path + os.sep + "npydata" + os.sep + "imgs_mask_train.npy")
 
-        # todo
+
         """
         # checking label data for values other than 0 or 255
         l_int = list(range(1, 255))
@@ -129,7 +112,6 @@ class BioSegNet:
         imgs_mask_train[imgs_mask_train > 0.5] = 1
         imgs_mask_train[imgs_mask_train <= 0.5] = 0
 
-        # todo 18-07-19
         if wmap == True:
 
             imgs_weights = np.load(self.path + os.sep + "npydata" + os.sep + "imgs_weights.npy")
@@ -147,50 +129,13 @@ class BioSegNet:
 
             return imgs_train, imgs_mask_train
 
-
-    def get_biosegnet(self, wmap, lr):
+    def get_mitosegnet(self, wmap, lr):
 
         inputs = Input(shape=(self.img_rows, self.img_cols, 1))
         print(inputs.get_shape(), type(inputs))
 
 
-        # core biosegnet (modified u-net) architecture
-        ######################################
-        ######################################
-
-        """
-
-        as of 10/10/2018
-
-        Contracting path:
-
-            5 sections each consisting of the following layers:
-
-                convolution 
-                batchnorm 
-                activation 
-                convolution
-                batchnorm
-                activation 
-                pooling
-
-        Expanding path: 
-
-            4 sections each consisting of the following layers:
-
-                inverse convolution (upsampling)
-                merging
-                convolution
-                convolution 
-
-            1 section containing only one convolutional layer 
-
-        """
-
-        # batchnorm architecture (batchnorm after activation)
-        ######################################################################
-        ######################################################################
-
+        # core mitosegnet (modified u-net) architecture
         # batchnorm architecture (batchnorm before activation)
         ######################################################################
 
@@ -352,7 +297,7 @@ class BioSegNet:
 
         return loss
 
-    # todo
+
     def train(self, epochs, learning_rate, batch_size, wmap, vbal, model_name, new_ex):
 
         if ".hdf5" in model_name:
@@ -369,8 +314,8 @@ class BioSegNet:
 
         print("Loading data done")
 
-        model = self.get_biosegnet(wmap, learning_rate)
-        print("Got BioSegNet")
+        model = self.get_mitosegnet(wmap, learning_rate)
+        print("Got MitoSegNet")
 
         print(self.path + os.sep + model_name)
 
@@ -418,18 +363,13 @@ class BioSegNet:
         else:
             x = imgs_train
 
-
         print("\nCopy the line below into the terminal, press enter and click on the link to evaluate the training "
               "performance:\n\ntensorboard --logdir=" + self.path + os.sep + "logs/\n")
-
 
         model.fit(x=x, y=imgs_mask_train, batch_size=batch_size, epochs=epochs, verbose=1,
                             validation_split=0.2, shuffle=True, callbacks=callbacks)
 
-        ########
-
         csv_file = pd.read_csv(self.path + os.sep + model_name + 'training_log.csv')
-
 
         if new_ex == "New" or new_ex == "Finetuned_New":
 
@@ -447,8 +387,6 @@ class BioSegNet:
 
             merged.to_csv(self.path + os.sep + model_name + 'training_log.csv')
 
-        ########
-
 
         info_file = open(self.path + os.sep + model_name + str(first_ep) + "-" + str(last_ep) + "_train_info.txt", "w")
         info_file.write("Learning rate: " + str(learning_rate)+
@@ -458,12 +396,8 @@ class BioSegNet:
 
         K.clear_session()
 
-    # todo
-    def predict(self, test_path, wmap, tile_size, model_name, pretrain, min_obj_size, ps_filter):
 
-        """
-        :return:
-        """
+    def predict(self, test_path, wmap, tile_size, model_name, pretrain, min_obj_size, ps_filter):
 
         K.clear_session()
 
@@ -484,8 +418,7 @@ class BioSegNet:
 
             imgs = glob.glob(test_path + os.sep + "*")
 
-            #todo
-
+            # adding a border around image to avoid using segmented border regions for final mask
             if org_img_cols < tile_size:
                 bs_x = int((tile_size - org_img_cols) / 2)
             else:
@@ -497,28 +430,11 @@ class BioSegNet:
                 bs_y = 40
 
 
-            """
-            if org_img_cols < tile_size and org_img_rows < tile_size:
-
-                #bs_x = int((tile_size * 2 - org_img_cols) / 2)
-                #bs_y = int((tile_size * 2 - org_img_rows) / 2)
-
-                bs_x = int((tile_size - org_img_cols) / 2)
-                bs_y = int((tile_size - org_img_rows) / 2)
-
-            else:
-                
-
-                bs_x = 40
-                bs_y = 40
-            """
-
             def get_tile_values(org_img_cols, org_img_rows, bs_x, bs_y, tile_size):
 
                 x = org_img_cols + 2 * bs_x
                 y = org_img_rows + 2 * bs_y
 
-                ###############
                 x_tile = math.ceil(x / tile_size)
                 y_tile = math.ceil(y / tile_size)
 
@@ -530,7 +446,6 @@ class BioSegNet:
             x, y, x_tile, y_tile, x_overlap, y_overlap = get_tile_values(org_img_cols, org_img_rows, bs_x, bs_y,
                                                                          tile_size)
 
-
             while not x_overlap.is_integer():
 
                 bs_x+=1
@@ -541,24 +456,6 @@ class BioSegNet:
                 bs_y+=1
                 x, y, x_tile, y_tile, x_overlap, y_overlap = get_tile_values(org_img_cols, org_img_rows, bs_x, bs_y,
                                                                              tile_size)
-
-            print(x_overlap, bs_x, x, y)
-
-            """
-            x = org_img_cols + 2*bs_x
-            y = org_img_rows + 2*bs_y
-
-            ###############
-            x_tile = math.ceil(x / tile_size)
-            y_tile = math.ceil(y / tile_size)
-
-            x_overlap = (np.abs(x - x_tile * tile_size)) / (x_tile - 1)
-            y_overlap = (np.abs(y - y_tile * tile_size)) / (y_tile - 1)
-            """
-
-            ################# temp 09-07-19
-
-            #################
 
             n_tiles = x_tile * y_tile
             ###############
@@ -601,7 +498,6 @@ class BioSegNet:
 
                     c += 1
 
-            ################
 
             imgdatas = np.ndarray((len(imgs) * n_tiles, tile_size, tile_size, 1), dtype=np.uint8)
 
@@ -622,7 +518,6 @@ class BioSegNet:
                     y, x = pad_img.shape
 
                     # split into n tiles
-                    ###################################################
 
                     start_y = 0
                     start_x = 0
@@ -674,7 +569,7 @@ class BioSegNet:
 
             lr = 1e-4
 
-            model = self.get_biosegnet(wmap, lr)
+            model = self.get_mitosegnet(wmap, lr)
 
             if pretrain == "":
                 model.load_weights(self.path + os.sep + model_name)
@@ -707,10 +602,8 @@ class BioSegNet:
         org_img_list = list(set(org_img_list))
         org_img_list.sort(key=self.natural_keys)
 
-
         # saving arrays as images
         print("Array to image")
-
 
         imgs = np.load(test_path + os.sep + 'imgs_mask_array.npy')
 
@@ -743,7 +636,6 @@ class BioSegNet:
             #############################################################
             # if we are in first or last column, the real x tile size is dependant on both border size and x overlap
             if column == 0 or column == x_tile - 1:
-
 
                 real_x_tile = int(tile_size - bs_x - x_overlap / 2)
                 #border_x = bs_x
@@ -809,7 +701,6 @@ class BioSegNet:
             # prior to stitching the overlapping sections and the padding have to be removed
             cut_img = img[int(start_y):int(end_y), int(start_x):int(end_x)]
 
-
             current_img[int(final_start_y):int(final_end_y), int(final_start_x):int(final_end_x)] = cut_img
 
             start_x = int(x_overlap / 2)
@@ -849,9 +740,8 @@ class BioSegNet:
 
                 new_image[new_image != 0] = 255
 
-
                 """       
-                Here we can insert a step to display both the prediction and the original image and allow the user
+                display both the prediction and the original image and allow the user
                 to select which images will be saved and which ones discarded    
                 """
 
@@ -886,7 +776,6 @@ class BioSegNet:
                     org_img = cv2.imread(test_path + os.sep + org_img_list[org_img_list_index])
                     cv2.imshow("Original", org_img)
 
-
                     print("\nPress s to save the image and any other key to discard it\n")
 
                     cv2.waitKey(115)
@@ -905,6 +794,5 @@ class BioSegNet:
 
                 org_img_list_index+=1
                 img_nr = 0
-
 
         K.clear_session()

@@ -1,6 +1,7 @@
 """
 
-checking the history csv files for each run
+class AnalyseData
+    Checking the history csv files for each run
 
 """
 
@@ -12,7 +13,6 @@ import seaborn as sb
 class AnalyseData:
 
     def __init__(self):
-
         pass
 
     def csv_analysis(self, filepath, metric, str_metric, aut):

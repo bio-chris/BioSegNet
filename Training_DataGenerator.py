@@ -1,20 +1,20 @@
 """
 
-Notes:
+class Preprocess
+    Calculate possible tile sizes, calculate tile positions, split images based on these calculations.
 
-Two classes:
+class Augment
+    Read train and label images separately and merge them
+    Using Keras preprocessing to augment the merged image
+    Separate augmented image back into single train and label image
 
-myAugmentation
+class Create_npy_files
+    ...
 
-Read train and label images separately and merge them
-Using Keras preprocessing to augment the merged image
-Separate augmented image back into single train and label image
+class dataProcess
 
-dataProcess
-
-create train and test data
-load train and test data
-
+    Create train and test data
+    Load train and test data
 
 """
 
@@ -25,7 +25,6 @@ import os
 import copy
 import glob
 import cv2
-import re
 from skimage.measure import label as set_labels, regionprops
 from scipy.ndimage.morphology import distance_transform_edt as get_dmap
 from keras.preprocessing.image import ImageDataGenerator
@@ -119,23 +118,9 @@ class Preprocess:
 
     def find_tile_pos(self, x, y, tile_size, start_x, end_x, start_y, end_y, column, row):
 
-        """
-        :param x:
-        :param y:
-        :param tile_size:
-        :param start_x:
-        :param end_x:
-        :param start_y:
-        :param end_y:
-        :param column:
-        :param row:
-        :return: start x, end x, start y and end y coordinates for tile position
-        """
-
         x_tile = math.ceil(x / tile_size)
         y_tile = math.ceil(y / tile_size)
 
-        # todo
         #if x_tile > 1 and y_tile > 1:
         if x_tile > 1 or y_tile > 1:
 
@@ -173,27 +158,17 @@ class Preprocess:
 
     def splitImgs(self, path, tile_size, n_tiles):
 
-        """
-        split original images into n tiles of equal width and length
-
-        :param tile_size:
-        :param n_tiles:
-        :return:
-        """
-
         if n_tiles%2!=0 and n_tiles!=1 or tile_size%16!=0:
 
             print(n_tiles)
             print("Incorrect number of tiles or tile size not divisible by 16.\nAborting")
             exit()
 
-
         path_train = path + os.sep + self.train_path
         path_label = path + os.sep + self.label_path
         path_raw = path + os.sep  + self.raw_path
 
         for img in os.listdir(path_raw + os.sep + "image"):
-
 
             read_img = cv2.imread(path_raw + os.sep + "image" + os.sep + img, -1)
 
@@ -208,8 +183,6 @@ class Preprocess:
             read_lab = cv2.imread(path_raw + os.sep + "label" + os.sep + img, cv2.IMREAD_GRAYSCALE)
 
             y, x = read_img.shape
-
-            #print(img, y, x)
 
             # todo
             #if tile_size > max(y,x)/2+16 and n_tiles!=1:
@@ -230,31 +203,9 @@ class Preprocess:
                 read_img = cv2.copyMakeBorder(read_img, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
                 read_lab = cv2.copyMakeBorder(read_lab, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
 
-
-            """
-            if tile_size > max(y, x) / 2 + 16: 
-
-                print("Image to small for selected tile size. Adding border")
-
-                ######
-
-                bs_x = int((tile_size - x) / 2)
-                bs_y = int((tile_size - y) / 2)
-
-                read_img = cv2.copyMakeBorder(read_img, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
-                read_lab = cv2.copyMakeBorder(read_lab, bs_y, bs_y, bs_x, bs_x, cv2.BORDER_REFLECT)
-
-                y, x = read_img.shape
-
-                ######
-
-                #exit()
-            """
-
             # splitting image into n tiles of predefined size
             #############
 
-            # todo
             # resetting n_tiles based on new image size
             n_tiles = int(math.ceil(y / tile_size) * math.ceil(x / tile_size))
 
@@ -281,12 +232,6 @@ class Preprocess:
 
 
 class Augment:
-    """
-    A class used to augment image
-    Firstly, read train image and label separately, and then merge them together for the next process
-    Secondly, use keras preprocessing to augment image
-    Finally, separate augmented image apart into train image and label
-    """
 
     def __init__(self, path, shear_range, rotation_range, zoom_range, brightness_range, horizontal_flip, vertical_flip,
                  width_shift_range, height_shift_range, train_path="train" + os.sep + "image", label_path="train" + os.sep + "label",
@@ -323,7 +268,7 @@ class Augment:
 
         self.map_path = self.path + os.sep + weights_path
 
-        # todo
+
         # ImageDataGenerator performs augmentation on original images
         self.datagen = ImageDataGenerator(
 
@@ -401,7 +346,6 @@ class Augment:
             weight_map = template_weight_map + w0 * np.exp(- ((dist_map1 + dist_map2) ** 2 / (2 * sigma ** 2)))
 
             return weight_map
-
 
         print("Starting Augmentation \n")
 
@@ -540,10 +484,8 @@ class Augment:
             save_dir(path_train)
             save_dir(path_label)
 
-
             if wmap == True:
                 save_dir(path_weights)
-
 
             for imgname in train_imgs:
 
@@ -555,7 +497,7 @@ class Augment:
                 img_train = img[:, :, 2]  # cv2 read image rgb->bgr
                 img_label = img[:, :, 0]
 
-                #todo
+                # decided to keep varying intensity values at border as this seems to increase segm-performance
                 # setting intensity values back to 255 after brightness change
                 #img_label[img_label > 0] = 255
 

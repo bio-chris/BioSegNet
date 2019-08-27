@@ -1,33 +1,31 @@
 """
 
-Class Control
+Main control script to access Create_Project, Model_Train_Predict, Train_Val_Analyser and Training_DataGenerator
+
+class Control
     Contains all functions that are necessary for the entire program
 
-Class Advanced Mode
+class Advanced Mode
     Contains all functions necessary for the advanced mode
 
-Class Easy Mode
+class Easy Mode
     Contains all function necessary for the easy mode
 
 """
-
 
 from tkinter import *
 import tkinter.font
 import tkinter.messagebox
 import tkinter.filedialog
 import os
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import shutil
 import webbrowser
 import math
 import cv2
-from skimage.measure import regionprops, label
 from Create_Project import *
 from Training_DataGenerator import *
-from Model_Train_Predict import *
+from Model_Train_Predict_GPU import *
 from Train_Val_Analyser import *
 
 
@@ -37,7 +35,6 @@ from Train_Val_Analyser import *
 class Control:
 
     """
-    Adds functions that can be accessed from all windows in the program
     """
 
     def __init__(self):
@@ -53,7 +50,6 @@ class Control:
 
         webbrowser.open_new("https://github.com/bio-chris/MitoSegNet")
 
-
     # open new window with specified width and height
     def new_window(self, window, title, width, height):
 
@@ -62,6 +58,7 @@ class Control:
         window.minsize(width=int(width/2), height=int(height/2))
         window.geometry(str(width)+"x"+str(height)+"+0+0")
 
+    # plot training performance automatically after training
     def automatic_eval_train(self, datapath):
 
         analyser = AnalyseData()
@@ -74,14 +71,16 @@ class Control:
 
         plt.show()
 
+    # plot training performance manually
     def eval_train(self):
 
         analysis_root = Tk()
-        self.new_window(analysis_root, "BioSegNet Training Analysis", 450, 170)
+        self.new_window(analysis_root, "MitoSegNet Training Analysis", 450, 170)
 
         datapath = StringVar(analysis_root)
         popup_var = StringVar(analysis_root)
 
+        # choose csv file window
         def askopencsv():
             set_modelpath = tkinter.filedialog.askopenfilename(parent=analysis_root, title='Choose a CSV file')
             datapath.set(set_modelpath)
@@ -89,13 +88,13 @@ class Control:
         #### browse for pretrained model
         text = "Select training log file"
         self.place_browse(askopencsv, text, datapath, 15, 20, None, None, analysis_root)
-        ####
 
         popup_var.set("Accuracy")
         Label(analysis_root, text="Choose Metric to display", bd=1).place(bordermode=OUTSIDE, x=15, y=90)
         popupMenu_train = OptionMenu(analysis_root, popup_var, *set(["Accuracy", "Dice coefficient", "Loss"]))
         popupMenu_train.place(bordermode=OUTSIDE, x=15, y=110, height=30, width=150)
 
+        # start analysis
         def analysis():
 
             if datapath.get() != "":
@@ -144,11 +143,6 @@ class Control:
     # extract tile size, original y and x resolution, list of tile images, list of images (prior to splitting)
     def get_image_info(self, path, pretrained, multifolder):
 
-        """
-        :param path:
-        :return: tile_size, y, x, tile_list, image_list
-        """
-
         def get_shape(path, img_list):
 
             for img in img_list:
@@ -160,10 +154,6 @@ class Control:
                     break
 
             return y, x
-
-
-        # we should not assume a new trained model should only predict images that are the same size as the ones the model
-        # was trained on
 
         if pretrained is False:
 
@@ -186,7 +176,6 @@ class Control:
 
             else:
 
-                #todo
                 y = []
                 x = []
 
@@ -200,6 +189,7 @@ class Control:
             return y, x
 
 
+    # create project folder necessary for training model
     def generate_project_folder(self, finetuning, project_name, path, img_datapath, label_datapath, window):
 
         create_project = CreateProject(project_name)
@@ -230,141 +220,50 @@ class Control:
                                         parent=window)
 
 
-    def get_measurements(self, imgpath, labpath, datatype, subfolder):
-
-        if datatype != False:
-
-            org_img_list = os.listdir(imgpath)
-
-            img_list = [i for i in org_img_list if ".tif" in i]
-            print(img_list)
-
-            dataframe = pd.DataFrame(columns=["Image", "Measurement", "Average", "Median", "Standard Deviation",
-                                              "Standard Error", "Minimum", "Maximum", "N"])
-
-            n = 0
-            for img in img_list:
-
-                read_img = cv2.imread(imgpath + os.sep + img, -1)
-                read_lab = cv2.imread(labpath + os.sep + img, cv2.IMREAD_GRAYSCALE)
-
-                print(imgpath + os.sep + img)
-                print(labpath + os.sep + img)
-
-                labelled_img = label(read_lab)[0]
-
-                labelled_img_props = regionprops(label_image=labelled_img, intensity_image=read_img, coordinates='xy')
-
-                area = [obj.area for obj in labelled_img_props]
-                minor_axis_length = [obj.minor_axis_length for obj in labelled_img_props]
-                major_axis_length = [obj.major_axis_length for obj in labelled_img_props]
-                eccentricity = [obj.eccentricity for obj in labelled_img_props]
-                perimeter = [obj.perimeter for obj in labelled_img_props]
-                solidity = [obj.solidity for obj in labelled_img_props]
-                mean_int = [obj.mean_intensity for obj in labelled_img_props]
-                max_int = [obj.max_intensity for obj in labelled_img_props]
-                min_int = [obj.min_intensity for obj in labelled_img_props]
-
-
-                def add_to_dataframe(measure_str, measure, n):
-
-                    dataframe.loc[n] = [img] + [measure_str, np.average(measure), np.median(measure), np.std(measure),
-                                                np.std(measure) / np.sqrt(len(measure)), np.min(measure), np.max(measure),
-                                                len(measure)]
-
-                meas_str_l = ["Area", "Minor Axis Length", "Major Axis Length", "Eccentricity", "Perimeter", "Solidity",
-                              "Mean Intensity", "Max Intensity", "Min Intensity"]
-
-                meas_l = [area, minor_axis_length, major_axis_length, eccentricity, perimeter, solidity, mean_int, max_int,
-                          min_int]
-
-                for m_str, m in zip(meas_str_l, meas_l):
-
-                    add_to_dataframe(m_str, m, n)
-                    n+=1
-
-            parentDirectory = os.path.abspath(os.path.join(imgpath, os.pardir))
-
-            if subfolder == False:
-                folder_name = parentDirectory.split(os.sep)[-1]
-            else:
-                folder_name = subfolder
-
-
-            if datatype == "CSV":
-                dataframe.to_csv(parentDirectory + os.sep + folder_name + "_Analysis_Table.csv")
-            else:
-                dataframe.to_excel(parentDirectory + os.sep + folder_name + "_Analysis_Table.xlsx")
-
-        else:
-            pass
-
-
-    def prediction(self, datapath, modelpath, pretrain, model_file, batch_var, popupvar, popupvar_meas, tile_size, y, x,
+    # predict image segmentation using trained model
+    def prediction(self, datapath, modelpath, pretrain, model_file, batch_var, popupvar, tile_size, y, x,
                    min_obj_size, ps_filter, window):
-
 
         set_gpu_or_cpu = GPU_or_CPU(popupvar)
         set_gpu_or_cpu.ret_mode()
 
-
-        if popupvar_meas == "No measurements":
-            datatype = False
-
-        elif popupvar_meas == "CSV Table":
-            datatype = "CSV"
-
-        else:
-            datatype = "Excel"
-
-
         if batch_var == "One folder":
 
-
-            pred_biosegnet = BioSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y, org_img_cols=x)
-
+            pred_mitosegnet = MitoSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y, org_img_cols=x)
 
             if not os.path.lexists(datapath + os.sep + "Prediction"):
                 os.mkdir(datapath + os.sep + "Prediction")
 
-            pred_biosegnet.predict(datapath, False, tile_size, model_file, pretrain, min_obj_size, ps_filter)
-
-            self.get_measurements(datapath, datapath + os.sep + "Prediction", datatype, False)
+            pred_mitosegnet.predict(datapath, False, tile_size, model_file, pretrain, min_obj_size, ps_filter)
 
         else:
 
             for i, subfolders in enumerate(os.listdir(datapath)):
 
-                pred_biosegnet = BioSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y[i],
+                pred_mitosegnet = MitoSegNet(modelpath, img_rows=tile_size, img_cols=tile_size, org_img_rows=y[i],
                                            org_img_cols=x[i])
 
 
                 if not os.path.lexists(datapath + os.sep + subfolders + os.sep + "Prediction"):
                     os.mkdir(datapath + os.sep + subfolders + os.sep + "Prediction")
 
-
-                pred_biosegnet.predict(datapath + os.sep + subfolders, False,
+                pred_mitosegnet.predict(datapath + os.sep + subfolders, False,
                                         tile_size, model_file, pretrain, min_obj_size, ps_filter)
-
-                labelpath = datapath + os.sep + subfolders + os.sep + "Prediction"
-
-                self.get_measurements(datapath + os.sep + subfolders, labelpath, datatype,
-                                               subfolders)
 
         tkinter.messagebox.showinfo("Done", "Prediction successful! Check " + datapath + os.sep +
                                     "Prediction" + " for segmentation results", parent=window)
 
-
+    # place gpu or cpu selection in window
     def place_gpu(self, popupvar, x, y, window):
 
         popupvar.set("GPU")
         Label(window, text="Train / Predict on", bd=1).place(bordermode=OUTSIDE, x=x, y=y)
-        popupMenu_train = OptionMenu(window, popupvar, *set(["GPU", "CPU"]))
-        popupMenu_train.place(bordermode=OUTSIDE, x=x+10, y=y+20, height=30, width=100)
+        popupmenu_train = OptionMenu(window, popupvar, *set(["GPU", "CPU"]))
+        popupmenu_train.place(bordermode=OUTSIDE, x=x+10, y=y+20, height=30, width=100)
 
 
-    def place_prediction_text(self, min_obj_size, batch_var, popupvar, popupvar_meas, window):
-
+    # place prediction text and entry in window
+    def place_prediction_text(self, min_obj_size, batch_var, popupvar, window):
 
         text_entry = "Enter the minimum object size (in pixels) to filter out noise"
         self.place_text(window, text_entry, 20, 160, None, None)
@@ -373,17 +272,12 @@ class Control:
         self.place_text(window, "Apply model prediction on one folder or multiple folders?", 20, 220,
                                  None, None)
         batch_var.set("One folder")
-        popupMenu_batch_pred = OptionMenu(window, batch_var, *set(["One folder", "Multiple folders"]))
-        popupMenu_batch_pred.place(bordermode=OUTSIDE, x=30, y=240, height=30, width=130)
+        popupmenu_batch_pred = OptionMenu(window, batch_var, *set(["One folder", "Multiple folders"]))
+        popupmenu_batch_pred.place(bordermode=OUTSIDE, x=30, y=240, height=30, width=130)
 
         self.place_gpu(popupvar, 20, 280, window)
 
-        popupvar_meas.set("No measurements")
-        Label(window, text="Generate measurement table", bd=1).place(bordermode=OUTSIDE, x=20, y=340)
-        popupMenu_train = OptionMenu(window, popupvar_meas, *set(["No measurements", "CSV Table", "Excel Table"]))
-        popupMenu_train.place(bordermode=OUTSIDE, x=30, y=360, height=30, width=130)
-
-
+    # place browsing text and button in window
     def place_browse(self, func, text, text_entry,x, y, height, width, window):
 
         if height is None or width is None:
@@ -398,7 +292,7 @@ class Control:
 
         return entry
 
-
+    # place text in window
     def place_text(self, window, text, x, y, height, width):
 
         if height is None or width is None:
@@ -406,10 +300,12 @@ class Control:
         else:
             Label(window, text=text, bd=1).place(bordermode=OUTSIDE, x=x, y=y, height=height, width=width)
 
+    # place button in window
     def place_button(self, window, text, func, x, y, height, width):
 
         Button(window, text=text, command=func).place(bordermode=OUTSIDE, x=x, y=y, height=height, width=width)
 
+    # place entry in window
     def place_entry(self, window, text, x, y, height, width):
 
         Entry(window, textvariable=text).place(bordermode=OUTSIDE, x=x, y=y, height=height, width=width)
@@ -418,10 +314,6 @@ class Control:
 class AdvancedMode(Control):
 
     """
-    Contains the following functionalities, in which most parameters can be adjusted by the user:
-
-    Start new project: create new project folder for subsequent data augmentation, training and prediction
-    Continue working on existing project: augment data, train model, predict using trained model
     """
 
     def __init__(self):
@@ -429,23 +321,14 @@ class AdvancedMode(Control):
 
     preprocess = Preprocess()
 
-    # Single "Continue working on existing project" windows
-    ##########################################
 
     # Window: Create augmented data
     def cont_data(self, old_window):
 
-        """
-        Data augmentation
-
-        :param old_window:
-        :return:
-        """
-
         old_window.destroy()
         data_root = Tk()
 
-        self.new_window(data_root, "BioSegNet Data Augmentation", 450, 600)
+        self.new_window(data_root, "MitoSegNet Data Augmentation", 450, 600)
         self.small_menu(data_root)
 
         dir_data_path = StringVar(data_root)
@@ -462,6 +345,7 @@ class AdvancedMode(Control):
 
         tkvar.set('')  # set the default option
 
+        # open choose directory window and adding list of possible tile sizess
         def askopendir():
 
             set_dir_data_path = tkinter.filedialog.askdirectory(parent=data_root, title='Choose a directory')
@@ -477,7 +361,6 @@ class AdvancedMode(Control):
                 popupMenu = OptionMenu(data_root, tkvar, *choices)
                 popupMenu.place(bordermode=OUTSIDE, x=30, y=90, height=30, width=300)
 
-
         # on change dropdown value
         def change_dropdown(*args):
 
@@ -488,12 +371,10 @@ class AdvancedMode(Control):
             tile_size.set(int(l[3]))
             tile_number.set(int(l[-1]))
 
-
         #link function to change dropdown (tile size and number)
         tkvar.trace('w', change_dropdown)
 
-
-        text= "Select BioSegNet Project directory"
+        text= "Select MitoSegNet Project directory"
         self.place_browse(askopendir, text, dir_data_path, 20, 10, None, None, data_root)
 
         self.place_text(data_root, "Choose the tile size and corresponding tile number", 20, 70, None, None)
@@ -533,12 +414,12 @@ class AdvancedMode(Control):
         self.place_text(data_root, "Brightness range (Range for random brightness change)", 30, 460, None, None)
         self.place_entry(data_root, brigthness_range, 370, 450, 30, 50)
 
-
         check_weights = StringVar(data_root)
         check_weights.set(False)
         Checkbutton(data_root, text="Create weight map", variable=check_weights, onvalue=True,
                     offvalue=False).place(bordermode=OUTSIDE, x=30, y=500, height=30, width=150)
 
+        # create augmented data
         def generate_data():
 
             if dir_data_path.get() != "":
@@ -577,25 +458,17 @@ class AdvancedMode(Control):
             else:
                 tkinter.messagebox.showinfo("Error", "Entries missing or not correct", parent=data_root)
 
-
         self.place_button(data_root, "Start data augmentation", generate_data, 150, 550, 30, 150)
 
 
     # Window: Train model
     def cont_training(self, old_window):
 
-        """
-        Train model
-
-        :param old_window:
-        :return:
-        """
-
         old_window.destroy()
 
         cont_training = Tk()
 
-        self.new_window(cont_training, "BioSegNet Navigator - Training", 500, 520)
+        self.new_window(cont_training, "MitoSegNet Navigator - Training", 500, 520)
         self.small_menu(cont_training)
 
         dir_data_path_train = StringVar(cont_training)
@@ -608,10 +481,10 @@ class AdvancedMode(Control):
         model_name = StringVar(cont_training)
         use_weight_map = StringVar(cont_training)
 
-
         place_text = self.place_text
         place_entry = self.place_entry
 
+        # open choose directory window and
         def askopendir_train():
 
             set_dir_data_path = tkinter.filedialog.askdirectory(parent=cont_training, title='Choose a directory')
@@ -656,15 +529,15 @@ class AdvancedMode(Control):
 
             except:
 
-                text_er = "Error: Please choose the BioSegNet Project directory"
+                text_er = "Error: Please choose the MitoSegNet Project directory"
                 self.place_text(cont_training, text_er, 500, 30, 20, 380)
 
-        text = "Select BioSegNet Project directory"
+        text = "Select MitoSegNet Project directory"
         self.place_browse(askopendir_train, text, dir_data_path_train, 20, 10, None, None, cont_training)
 
         self.place_text(cont_training, "Train new or existing model", 20, 70, None, None)
 
-
+        # dynamic dropdown menu
         def change_dropdown_newex(*args):
 
             if dir_data_path_train.get() != '':
@@ -715,7 +588,7 @@ class AdvancedMode(Control):
         popupMenu_train = OptionMenu(cont_training, popup_var, *set(["GPU", "CPU"]))
         popupMenu_train.place(bordermode=OUTSIDE, x=30, y=430, height=30, width=100)
 
-
+        # start training
         def start_training():
 
             if dir_data_path_train.get() != "" and use_weight_map.get() != "" and epochs.get() != 0 and learning_rate.get() != 0 \
@@ -730,14 +603,14 @@ class AdvancedMode(Control):
 
                 tile_size, y, x, tiles_list, images_list = self.get_image_info(dir_data_path_train.get(), False, False)
 
-                train_biosegnet = BioSegNet(dir_data_path_train.get(), img_rows=tile_size, img_cols=tile_size,
+                train_mitosegnet = MitoSegNet(dir_data_path_train.get(), img_rows=tile_size, img_cols=tile_size,
                                               org_img_rows=y, org_img_cols=x)
 
                 set_gpu_or_cpu = GPU_or_CPU(popup_var.get())
                 set_gpu_or_cpu.ret_mode()
 
                 #def train(self, epochs, wmap, vbal):
-                train_biosegnet.train(epochs.get(), learning_rate.get(), bs, weight_map, balancer.get(),
+                train_mitosegnet.train(epochs.get(), learning_rate.get(), bs, weight_map, balancer.get(),
                                        model_name.get(), popup_newex_var.get())
 
                 tkinter.messagebox.showinfo("Done", "Training completed", parent=cont_training)
@@ -761,19 +634,20 @@ class AdvancedMode(Control):
 
         cont_prediction_window = Tk()
 
-        self.new_window(cont_prediction_window, "BioSegNet Navigator - Prediction", 500, 450)
+        self.new_window(cont_prediction_window, "MitoSegNet Navigator - Prediction", 500, 400)
         self.small_menu(cont_prediction_window)
 
         dir_data_path_prediction = StringVar(cont_prediction_window)
         popup_var = StringVar(cont_prediction_window)
-        popupvar_meas = StringVar(cont_prediction_window)
         batch_var = StringVar(cont_prediction_window)
         model_name = StringVar(cont_prediction_window)
         min_obj_size = StringVar(cont_prediction_window)
+        min_obj_size.set(0)
         dir_data_path_test_prediction = StringVar(cont_prediction_window)
         found = IntVar()
         found.set(0)
 
+        # open choose directory window
         def askopendir_pred():
 
             set_dir_data_path = tkinter.filedialog.askdirectory(parent=cont_prediction_window, title='Choose a directory')
@@ -797,10 +671,10 @@ class AdvancedMode(Control):
                 else:
                     self.place_text(cont_prediction_window, "No model found", 40, 60, 35, 360)
 
-        text = "Select BioSegNet Project directory"
+        text = "Select MitoSegNet Project directory"
         self.place_browse(askopendir_pred, text, dir_data_path_prediction, 20, 10, None, None, cont_prediction_window)
 
-
+        # open choose directory window
         def askopendir_test_pred():
 
             set_dir_data_path_test = tkinter.filedialog.askdirectory(parent=cont_prediction_window,
@@ -815,8 +689,9 @@ class AdvancedMode(Control):
         ps_filter.set(False)
         psf_button = Checkbutton(cont_prediction_window, text="Post-segmentation filtering", variable=ps_filter, onvalue=True,
                                  offvalue=False)
-        psf_button.place(bordermode=OUTSIDE, x=15, y=400, height=30, width=200)
+        psf_button.place(bordermode=OUTSIDE, x=15, y=340, height=30, width=200)
 
+        # start prediction
         def start_prediction():
 
             if dir_data_path_prediction.get() != "" and found.get() == 1 and dir_data_path_test_prediction.get() != "":
@@ -831,44 +706,45 @@ class AdvancedMode(Control):
 
                     y, x = self.get_image_info(dir_data_path_test_prediction.get(), True, True)
 
-                self.prediction(dir_data_path_test_prediction.get(), dir_data_path_prediction.get(), "",
-                                         model_name.get(), batch_var.get(), popup_var.get(), popupvar_meas.get(),
-                                         tile_size, y, x, min_obj_size.get(), ps_filter.get(), cont_prediction_window)
+                self.prediction(dir_data_path_test_prediction.get(), dir_data_path_prediction.get(), "", model_name.get(),
+                                batch_var.get(), popup_var.get(),  tile_size, y, x, min_obj_size.get(), ps_filter.get(),
+                                cont_prediction_window)
 
             else:
 
                 tkinter.messagebox.showinfo("Error", "Entries not completed", parent=cont_prediction_window)
 
-        self.place_prediction_text(min_obj_size, batch_var, popup_var, popupvar_meas, cont_prediction_window)
+        self.place_prediction_text(min_obj_size, batch_var, popup_var, cont_prediction_window)
 
-        self.place_button(cont_prediction_window, "Start prediction", start_prediction, 360, 410, 30, 110)
+        self.place_button(cont_prediction_window, "Start prediction", start_prediction, 360, 340, 30, 110)
 
-    ##########################################
+
 
     # Start new project window
-    ##########################################
-
     def start_new_project(self):
 
         root.quit()
 
         start_root = Tk()
 
-        self.new_window(start_root, "BioSegNet Navigator - Start new project", 500, 320)
+        self.new_window(start_root, "MitoSegNet Navigator - Start new project", 500, 320)
 
         project_name = StringVar(start_root)
         dirpath = StringVar(start_root)
         orgpath = StringVar(start_root)
         labpath = StringVar(start_root)
 
+        # open choose directory window
         def askopendir():
             set_dirpath = tkinter.filedialog.askdirectory(parent=start_root, title='Choose a directory')
             dirpath.set(set_dirpath)
 
+        # open choose directory window
         def askopenorg():
             set_orgpath = tkinter.filedialog.askdirectory(parent=start_root, title='Choose a directory')
             orgpath.set(set_orgpath)
 
+        # open choose directory window
         def askopenlab():
             set_labpath = tkinter.filedialog.askdirectory(parent=start_root, title='Choose a directory')
             labpath.set(set_labpath)
@@ -878,7 +754,7 @@ class AdvancedMode(Control):
         self.place_text(start_root, "Select project name", 15, 10, None, None)
         self.place_entry(start_root, project_name, 25, 30, 30, 350)
 
-        text = "Select directory in which BioSegNet project files should be generated"
+        text = "Select directory in which MitoSegNet project files should be generated"
         entry = self.place_browse(askopendir, text, dirpath, 15, 70, None, None, start_root)
 
         text = "Select directory in which 8-bit raw images are stored"
@@ -887,7 +763,7 @@ class AdvancedMode(Control):
         text = "Select directory in which ground truth (hand-labelled) images are stored"
         entry_lab = self.place_browse(askopenlab, text, labpath, 15, 190, None, None, start_root)
 
-
+        # generate new project folders and copy data
         def generate():
 
             str_dirpath = entry.get()
@@ -901,16 +777,12 @@ class AdvancedMode(Control):
 
         start_root.mainloop()
 
-    ##########################################
-
     # Continue working on existing project navigation window
-    ##########################################
-
     def cont_project(self):
 
         cont_root = Tk()
 
-        self.new_window(cont_root, "BioSegNet Navigator - Continue", 300, 200)
+        self.new_window(cont_root, "MitoSegNet Navigator - Continue", 300, 200)
         self.small_menu(cont_root)
 
         h = 50
@@ -926,11 +798,6 @@ class AdvancedMode(Control):
 class EasyMode(Control):
 
     """
-    Contains the following functionalities, in which most parameters can be adjusted by the user:
-
-    Predict on pretrained model: select folder with raw 8-bit images and pretrained model to segment images
-    Finetune pretrained model: if prediction on pretrained model fails, model can be trained (finetuned) on new data
-    to improve segmentation accuracy
     """
 
     def __init__(self):
@@ -948,45 +815,44 @@ class EasyMode(Control):
 
         p_pt_root = Tk()
 
-        self.new_window(p_pt_root, "BioSegNet Navigator - Predict using pretrained model", 500, 450)
+        self.new_window(p_pt_root, "MitoSegNet Navigator - Predict using pretrained model", 500, 400)
         self.small_menu(p_pt_root)
 
         datapath = StringVar(p_pt_root)
         modelpath = StringVar(p_pt_root)
         popupvar = StringVar(p_pt_root)
-        popupvar_meas = StringVar(p_pt_root)
         batch_var = StringVar(p_pt_root)
         min_obj_size = StringVar(p_pt_root)
+        min_obj_size.set(0)
 
+        # open choose directory window
         def askopendata():
             set_datapath = tkinter.filedialog.askdirectory(parent=p_pt_root, title='Choose a directory')
             datapath.set(set_datapath)
 
+        # open choose file window
         def askopenmodel():
             set_modelpath = tkinter.filedialog.askopenfilename(parent=p_pt_root, title='Choose a file')
             modelpath.set(set_modelpath)
 
-        #### browse for raw image data
+        #browse for raw image data
         text = "Select directory in which 8-bit raw images are stored"
         self.place_browse(askopendata, text, datapath, 15, 20, None, None, p_pt_root)
-        ####
 
-        #### browse for pretrained model
+        #browse for pretrained model
         text = "Select pretrained model file"
         self.place_browse(askopenmodel, text, modelpath, 15, 90, None, None, p_pt_root)
-        ####
 
-        self.place_prediction_text(min_obj_size ,batch_var, popupvar, popupvar_meas, p_pt_root)
-
-
+        self.place_prediction_text(min_obj_size ,batch_var, popupvar, p_pt_root)
 
         ps_filter = StringVar(p_pt_root)
         ps_filter.set(False)
         psf_button = Checkbutton(p_pt_root, text="Post-segmentation filtering", variable=ps_filter, onvalue=True,
                                 offvalue=False)
-        psf_button.place(bordermode=OUTSIDE, x=15, y=400, height=30, width=200)
+        psf_button.place(bordermode=OUTSIDE, x=15, y=340, height=30, width=200)
 
 
+        # start prediction on pretrained model
         def start_prediction_pretrained():
 
             if datapath.get() != "" and modelpath.get() != "":
@@ -1006,7 +872,7 @@ class EasyMode(Control):
 
 
                 self.prediction(datapath.get(), datapath.get(), modelpath.get(), model_file, batch_var.get(),
-                                popupvar.get(), popupvar_meas.get(), tile_size, y, x, min_obj_size.get(), ps_filter.get(),
+                                popupvar.get(), tile_size, y, x, min_obj_size.get(), ps_filter.get(),
                                 p_pt_root)
 
             else:
@@ -1014,38 +880,40 @@ class EasyMode(Control):
                 tkinter.messagebox.showinfo("Error", "Entries not completed", parent=p_pt_root)
 
 
-        self.place_button(p_pt_root, "Start prediction", start_prediction_pretrained, 360, 410, 30, 110)
+        self.place_button(p_pt_root, "Start prediction", start_prediction_pretrained, 360, 340, 30, 110)
 
+
+    # open window to ask user if new or existing finetuning is wanted
     def pre_finetune_pretrained(self):
 
         pre_ft_pt_root = Tk()
 
-        self.new_window(pre_ft_pt_root, "BioSegNet Navigator - Finetune pretrained model", 250, 380)
+        self.new_window(pre_ft_pt_root, "MitoSegNet Navigator - Finetune pretrained model", 250, 380)
         self.small_menu(pre_ft_pt_root)
 
         self.place_button(pre_ft_pt_root, "New", easy_mode.new_finetune_pretrained, 45, 50, 130, 150)
         self.place_button(pre_ft_pt_root, "Existing", easy_mode.cont_finetune_pretrained, 45, 200, 130, 150)
 
-
+    # continue on existing finetuning project
     def cont_finetune_pretrained(self):
 
         ex_ft_pt_root = Tk()
 
-        self.new_window(ex_ft_pt_root, "BioSegNet Navigator - Continue finetuning pretrained model", 500, 230)
+        self.new_window(ex_ft_pt_root, "MitoSegNet Navigator - Continue finetuning pretrained model", 500, 230)
         self.small_menu(ex_ft_pt_root)
 
         ft_datapath = StringVar(ex_ft_pt_root)
         epochs = IntVar(ex_ft_pt_root)
         popupvar = StringVar(ex_ft_pt_root)
 
+        # open choose file window
         def askopenfinetune():
             set_ftdatapath = tkinter.filedialog.askdirectory(parent=ex_ft_pt_root, title='Choose the Finetune folder')
             ft_datapath.set(set_ftdatapath)
 
-        #### browse for finetune folder
+        #browse for finetune folder
         text = "Select Finetune folder"
         self.place_browse(askopenfinetune, text, ft_datapath, 15, 20, None, None, ex_ft_pt_root)
-        ####
 
         # set number of epochs
         self.place_text(ex_ft_pt_root, "Number of epochs", 20, 100, None, None)
@@ -1065,7 +933,7 @@ class EasyMode(Control):
                 tile_size, y, x, tiles_list, images_list  = self.get_image_info(ft_datapath.get(), False, False)
                 tile_size = int(model_list[0].split("_")[-2])
 
-                train_biosegnet = BioSegNet(ft_datapath.get(), img_rows=tile_size,
+                train_mitosegnet = MitoSegNet(ft_datapath.get(), img_rows=tile_size,
                                               img_cols=tile_size, org_img_rows=y, org_img_cols=x)
 
                 set_gpu_or_cpu = GPU_or_CPU(popupvar.get())
@@ -1078,13 +946,12 @@ class EasyMode(Control):
                 batch_size = 1
                 balancer = 1/fg_bg_ratio
 
-
                 if "weight_map" in model_list[0]:
                     wmap = True
                 else:
                     wmap = False
 
-                train_biosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, model_list[0], "Existing")
+                train_mitosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, model_list[0], "Existing")
 
                 modelname = model_list[0].split(".hdf5")[0]
 
@@ -1102,13 +969,9 @@ class EasyMode(Control):
     # Window: Finetune pretrained model
     def new_finetune_pretrained(self):
 
-        """
-        :return:
-        """
-
         ft_pt_root = Tk()
 
-        self.new_window(ft_pt_root, "BioSegNet Navigator - Finetune pretrained model", 500, 450)
+        self.new_window(ft_pt_root, "MitoSegNet Navigator - Finetune pretrained model", 500, 450)
         self.small_menu(ft_pt_root)
 
         folder_name = StringVar(ft_pt_root)
@@ -1119,14 +982,17 @@ class EasyMode(Control):
         epochs = IntVar(ft_pt_root)
         popupvar = StringVar(ft_pt_root)
 
+        # open choose file window
         def askopenimgdata():
             set_imgdatapath = tkinter.filedialog.askdirectory(parent=ft_pt_root, title='Choose a directory')
             img_datapath.set(set_imgdatapath)
 
+        # open choose directory window
         def askopenlabdata():
             set_labdatapath = tkinter.filedialog.askdirectory(parent=ft_pt_root, title='Choose a directory')
             label_datapath.set(set_labdatapath)
 
+        # open choose file window
         def askopenmodel():
             set_modelpath = tkinter.filedialog.askopenfilename(parent=ft_pt_root, title='Choose a file')
             modelpath.set(set_modelpath)
@@ -1154,7 +1020,6 @@ class EasyMode(Control):
         # set number of epochs
         self.place_text(ft_pt_root, "Number of epochs", 30, 320, None, None)
         self.place_entry(ft_pt_root, epochs, 250, 315, 30, 50)
-
 
         # set gpu or cpu training
         self.place_gpu(popupvar, 20, 350, ft_pt_root)
@@ -1191,7 +1056,6 @@ class EasyMode(Control):
                 self.preprocess.splitImgs(parent_path + os.sep + folder_name.get(), tile_size, n_tiles)
 
                 # augment the tiles automatically (no user adjustments)
-
                 shear_range = 0.3
                 rotation_range = 180
                 zoom_range = 0.3
@@ -1220,7 +1084,7 @@ class EasyMode(Control):
 
                 mydata.create_train_data(wmap, tile_size, tile_size)
 
-                train_biosegnet = BioSegNet(parent_path + os.sep + folder_name.get(), img_rows=tile_size,
+                train_mitosegnet = MitoSegNet(parent_path + os.sep + folder_name.get(), img_rows=tile_size,
                                               img_cols=tile_size, org_img_rows=y, org_img_cols=x)
 
                 set_gpu_or_cpu = GPU_or_CPU(popupvar.get())
@@ -1241,15 +1105,13 @@ class EasyMode(Control):
                 shutil.copy(modelpath.get(), parent_path + os.sep + folder_name.get() + os.sep + "finetuned_" + old_model_name)
                 new_model_name = "finetuned_" + old_model_name
 
-                train_biosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, new_model_name, "Finetuned_New")
+                train_mitosegnet.train(epochs.get(), learning_rate, batch_size, wmap, balancer, new_model_name, "Finetuned_New")
 
                 modelname = new_model_name.split(".hdf5")[0]
                 self.automatic_eval_train(parent_path + os.sep + folder_name.get() + os.sep + modelname
                                                    + "training_log.csv")
 
                 tkinter.messagebox.showinfo("Done", "Training / Finetuning completed", parent=ft_pt_root)
-
-
 
             else:
 
@@ -1260,17 +1122,13 @@ class EasyMode(Control):
 
 if __name__ == '__main__':
 
-    """
-    Main (starting) window
-    """
-
     control_class = Control()
     easy_mode = EasyMode()
     advanced_mode = AdvancedMode()
 
     root = Tk()
 
-    control_class.new_window(root, "BioSegNet Navigator - Start", 400, 400)
+    control_class.new_window(root, "MitoSegNet Navigator - Start", 400, 400)
     control_class.small_menu(root)
 
     # advanced mode
