@@ -35,8 +35,7 @@ If you are unfamiliar with deep learning concepts such as batch size, learning r
 
 ### Predict on pretrained model
 
-* Select directory in which 8-bit raw images are stored:
-** Images have to be 8-bit, tif format and single plane. Use the macro MitoSegNet_PreProcessing.ijm for automated conversion of a large number of images (Prerequisite for macro usage is installation of Bio-Formats plugin on Fiji)
+* Select directory in which 8-bit raw images are stored: Images have to be 8-bit, tif format and single plane. Use the macro MitoSegNet_PreProcessing.ijm for automated conversion of a large number of images (Prerequisite for macro usage is installation of Bio-Formats plugin on Fiji)
 * Select pretrained_model_656.hdf5 (which can be found in installation folder)
 * Enter minimum object size (in pixels) to exclude noise from the final segmentation 
 * Depending if you have all images in one folder, or multiple set of images in sub-folders you can select to apply the model to one folder or multiple folders (Folder > Subfolder > Images)
@@ -88,8 +87,11 @@ Start with generating the training data.
 
 * Select the recently created project directory 
 * Based on the size of the images you are using the software will present you a list of possible tile sizes and tile numbers. When using the GPU, be aware that the maximum tile size possible will be limited by the GPU memory. If you run out of memory, try to select a smaller tile size
-* Choose the number of augmentation parameters: here you can specify how many augmentations per image you want to generate 
+* Choose the number of augmentations per image you want to generate 
 * Specify augmentation operations: visit https://keras.io/preprocessing/image/ to see what the different augmentation operations do
+	* Horizontal flip
+	* Vertical flip 
+	* Width shift range
 * Create weight map: a weight map shows objects that are in close proximity to each other and is used to force the convolutional neural network to learn border separations. Be aware that when selecting "Create weight map" that the augmentation process will take longer and the training data will use more disk space 
 
 ### Train model
