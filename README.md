@@ -36,12 +36,11 @@ If you are unfamiliar with deep learning concepts such as batch size, learning r
 ### Predict on pretrained model
 
 * Select directory in which 8-bit raw images are stored:
-* Images have to be 8-bit, tif format and single plane. Use the macro MitoSegNet_PreProcessing.ijm for automated conversion of a large number of images (Prerequisite for macro usage is installation of Bio-Formats plugin on Fiji)
+** Images have to be 8-bit, tif format and single plane. Use the macro MitoSegNet_PreProcessing.ijm for automated conversion of a large number of images (Prerequisite for macro usage is installation of Bio-Formats plugin on Fiji)
 * Select pretrained_model_656.hdf5 (which can be found in installation folder)
 * Enter minimum object size (in pixels) to exclude noise from the final segmentation 
 * Depending if you have all images in one folder, or multiple set of images in sub-folders you can select to apply the model to one folder or multiple folders (Folder > Subfolder > Images)
-* Select to predict on GPU or CPU 
-* Generate measurement table: this will automatically generate CSV or Excel sheets (one per folder) containing statistical values of various morphological parameters and intensity for each image. For a more detailed analysis, use the MitoSegNet Analyser 
+* Select to predict on GPU or CPU (only on GPU version)
 * Post-segmentation filtering: shows each generated segmentation automatically to allow User to choose which masks to save and which to discard
 
 Once all entries are filled, click on "Start prediction" and wait until a Done window opens to notify of the successful completion.
@@ -56,7 +55,9 @@ Select "New" if you are starting a new finetuning project or "Existing" if you w
 * Select directory in which 8-bit raw images are stored:
 * Select directory in which hand-labelled (ground truth) images are stored 
 * Select pretrained_model_656.hdf5
+* Specify the number of augmentations (defines the number of times the original image will be duplicated and augmented. Start with a minimum of 10 augmentations per image. Increase until results no longer improve)
 * Specify the number of epochs (defines the repetitions the training process will run through to learn how to segment the images based on the new input)
+* Select to train on GPU or CPU 
 
 Once all entries are filled, click on "Start training" and wait until a Done window opens to notify of the successful completion. 
 In the parent directory of the raw image and label image folder a Finetune_folder will be generated in which all the newly augmented data, image arrays and finetuned models will be stored.
@@ -111,4 +112,3 @@ we can set the weight factor to 1/19 which is roughly 0.05. That means that only
 * Select the project directory in which a trained model file has been generated 
 * Select the folder in which previously unseen 8-bit images are located in to test model prediction 
 * If the folder contains only images files you may select "One folder" but in case it contains subfolders in which the images are located, then select "Multiple folders" to generate segmentations for all subfolders 
-* Generate measurement table: automatically generates excel or csv tables in which the average, median, standard deviation, standard error, minimum and maximum of intensity and shape descriptor values of each image are added
