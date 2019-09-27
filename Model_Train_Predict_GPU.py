@@ -56,6 +56,10 @@ from keras.initializers import RandomNormal as gauss
 from keras import backend as K
 from keras import losses
 from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger, TensorBoard
+import tensorflow as tf
+
+# ignoring deprecation warnings
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 from Training_DataGenerator import *
 

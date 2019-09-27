@@ -27,7 +27,10 @@ from Create_Project import *
 from Training_DataGenerator import *
 from Model_Train_Predict_GPU import *
 from Train_Val_Analyser import *
+import warnings
 
+# ignore general deprecation warnings
+warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 # GUI
 ####################
