@@ -32,7 +32,6 @@ print("Train / Predict on CPU")
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-
 from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization
 from keras.models import Model
 from keras.optimizers import Adam
